@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,6 +89,12 @@ class AgentSession:
     ) -> None:
         self.settings = settings
         self.history: list[Message] = []
+
+        # Apply workspace before anything that depends on cwd
+        workspace = settings.agent.workspace
+        if workspace:
+            os.chdir(workspace)
+            logger.info("Changed working directory to {ws}", ws=workspace)
 
         # Load agent config
         if agent_config is None:

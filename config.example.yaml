@@ -15,5 +15,5 @@
 agent:
   # Path to agent.yaml (empty = built-in default)
   agent_file: ""
-  # Working directory for tool execution (empty = cwd)
+  # Agent working directory (empty = cwd)
   workspace: ""
