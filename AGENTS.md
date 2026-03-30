@@ -1,2 +1,4 @@
-- use `uv` for python
+- use `uv` for python, e.g.
+    - `uv run` to run python script
+    - `uv add` and `uv remove` to manage dependencies
 - 使用 `kosong` 包来处理 agent loop 和 chat/llm provider，用 `uv pip show kosong` 可获得 kosong 的源码位置

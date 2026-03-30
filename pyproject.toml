@@ -6,16 +6,16 @@ readme = "README.md"
 authors = [
     { name = "Justin Wong", email = "justin.w.xd@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "kosong>=0.46.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.3",
-    "loguru>=0.7.0",
     "rich>=13.0.0",
     "click>=8.0.0",
     "python-telegram-bot>=21.0",
+    "kimi-cli>=1.27",
 ]
 
 [project.scripts]
