@@ -1,0 +1,19 @@
+# CloseClaw configuration file
+# Copy to config.yaml and edit as needed.
+# Environment variables and .env take precedence over values here.
+
+# --- Kimi / Moonshot API ---
+# kimi_api_key: "sk-xxx"
+# kimi_base_url: "https://api.moonshot.ai/v1"
+# kimi_model: "kimi-k2.5"
+
+# --- Telegram ---
+# telegram_bot_token: "123456:ABC-DEF"
+# telegram_allowed_users: "111,222,333"
+
+# --- Agent ---
+agent:
+  # Path to agent.yaml (empty = built-in default)
+  agent_file: ""
+  # Working directory for tool execution (empty = cwd)
+  workspace: ""

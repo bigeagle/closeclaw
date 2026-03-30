@@ -1,12 +1,33 @@
-"""Configuration management using pydantic-settings."""
+"""Configuration management using pydantic-settings.
+
+Priority (high → low): init kwargs > env vars > .env > config.yaml > defaults
+"""
 
 from __future__ import annotations
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+from pydantic import BaseModel
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
+
+# Set by get_settings() before constructing the singleton.
+_config_file: str | Path | None = None
+
+
+class AgentSettings(BaseModel):
+    """Agent-related settings, typically from config.yaml."""
+
+    agent_file: str = ""
+    workspace: str = ""
 
 
 class Settings(BaseSettings):
-    """Application settings, loaded from .env / environment variables."""
+    """Application settings, loaded from env / .env / config.yaml."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -25,6 +46,9 @@ class Settings(BaseSettings):
     # issues with empty env values.
     telegram_allowed_users: str = ""
 
+    # --- Agent ---
+    agent: AgentSettings = AgentSettings()
+
     @property
     def allowed_user_ids(self) -> list[int]:
         """Parse ``telegram_allowed_users`` into a list of ints."""
@@ -33,13 +57,33 @@ class Settings(BaseSettings):
             return []
         return [int(x.strip()) for x in raw.split(",")]
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(
+                settings_cls, yaml_file=_config_file or "config.yaml"
+            ),
+            file_secret_settings,
+        )
+
 
 # Singleton-ish helper – import and call once at startup.
 _settings: Settings | None = None
 
 
-def get_settings() -> Settings:
-    global _settings
+def get_settings(*, config_file: str | Path | None = None) -> Settings:
+    global _settings, _config_file
     if _settings is None:
+        _config_file = config_file
         _settings = Settings()
     return _settings

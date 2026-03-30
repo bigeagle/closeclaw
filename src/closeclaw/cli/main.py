@@ -29,11 +29,20 @@ def _setup_logging(verbose: bool) -> None:
 
 @click.group()
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging.")
+@click.option(
+    "-c",
+    "--config",
+    "config_file",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to config.yaml.",
+)
 @click.pass_context
-def cli(ctx: click.Context, verbose: bool) -> None:
+def cli(ctx: click.Context, verbose: bool, config_file: str | None) -> None:
     """CloseClaw – AI Agent on Telegram."""
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
+    ctx.obj["config_file"] = config_file
     _setup_logging(verbose)
 
 
@@ -44,10 +53,10 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 @click.pass_context
 def chat(ctx: click.Context) -> None:
     """Interactive chat with the agent (debug / development)."""
-    asyncio.run(_chat_loop())
+    asyncio.run(_chat_loop(ctx.obj.get("config_file")))
 
 
-async def _chat_loop() -> None:
+async def _chat_loop(config_file: str | None = None) -> None:
     from closeclaw.agent_core.loop import (
         AgentSession,
         TextDelta,
@@ -56,7 +65,7 @@ async def _chat_loop() -> None:
         TurnDone,
     )
 
-    settings = get_settings()
+    settings = get_settings(config_file=config_file)
 
     if not settings.kimi_api_key:
         logger.error("KIMI_API_KEY is not set.")
@@ -70,7 +79,7 @@ async def _chat_loop() -> None:
     while True:
         try:
             user_input = console.input("[bold green]You>[/bold green] ")
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             console.print("\nBye!")
             break
 
@@ -125,7 +134,7 @@ def gateway(ctx: click.Context, debug: bool) -> None:
         _setup_logging(verbose=True)
     from closeclaw.channels.telegram import run_telegram_bot
 
-    settings = get_settings()
+    settings = get_settings(config_file=ctx.obj.get("config_file"))
 
     if not settings.kimi_api_key:
         logger.error("KIMI_API_KEY is not set.")
@@ -147,7 +156,7 @@ def telegram(ctx: click.Context) -> None:
     """Run a minimal Telegram debug bot (echo, ping, draft test)."""
     from closeclaw.channels.telegram import run_telegram_debug
 
-    settings = get_settings()
+    settings = get_settings(config_file=ctx.obj.get("config_file"))
 
     if not settings.telegram_bot_token:
         logger.error("TELEGRAM_BOT_TOKEN is not set.")
