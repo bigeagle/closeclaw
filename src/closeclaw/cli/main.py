@@ -8,6 +8,7 @@ import sys
 import click
 from loguru import logger
 from rich.console import Console
+from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 
@@ -20,7 +21,6 @@ def _setup_logging(verbose: bool) -> None:
     logger.remove()
     level = "DEBUG" if verbose else "INFO"
     logger.add(sys.stderr, level=level, format="<level>{message}</level>")
-    # Enable kosong internal logs when verbose
     if verbose:
         logger.enable("kosong")
 
@@ -51,6 +51,7 @@ def chat(ctx: click.Context) -> None:
 async def _chat_loop() -> None:
     from closeclaw.agent_core.loop import (
         AgentSession,
+        TextDelta,
         ToolCallDone,
         ToolCallStart,
         TurnDone,
@@ -80,8 +81,20 @@ async def _chat_loop() -> None:
             continue
 
         console.print()
+        streamed_text = ""
+        in_streaming = False
+
         async for event in session.chat(user_input):
-            if isinstance(event, ToolCallStart):
+            if isinstance(event, TextDelta):
+                # Stream text token-by-token to stdout
+                if not in_streaming:
+                    in_streaming = True
+                print(event.text, end="", flush=True)
+                streamed_text += event.text
+            elif isinstance(event, ToolCallStart):
+                if in_streaming:
+                    print()  # newline after streamed text
+                    in_streaming = False
                 console.print(
                     f"  [dim]🔧 calling [cyan]{event.name}[/cyan][/dim]",
                 )
@@ -92,8 +105,12 @@ async def _chat_loop() -> None:
                 preview = event.output[:300].rstrip()
                 console.print(f"  [dim]{icon} {preview}[/dim]")
                 console.print()
+                streamed_text = ""  # reset for next step
             elif isinstance(event, TurnDone):
-                console.print(Markdown(event.text))
+                if in_streaming:
+                    print()  # final newline
+                    in_streaming = False
+
         console.print()
 
 

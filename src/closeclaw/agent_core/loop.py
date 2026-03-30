@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from loguru import logger
 
 import kosong
+from kosong.chat_provider import StreamedMessagePart
 from kosong.chat_provider.kimi import Kimi
-from kosong.message import Message, TextPart
+from kosong.message import Message, TextPart, ThinkPart
 from kosong.tooling.simple import SimpleToolset
 
 from closeclaw.agent_core.tools import BashTool
@@ -23,6 +24,8 @@ Always be concise and helpful.\
 """
 
 MAX_STEPS = 20
+
+_SENTINEL = object()
 
 
 # ── Events yielded by the agent loop ──────────────────────────────────────────
@@ -96,25 +99,48 @@ class AgentSession:
     async def chat(self, user_message: str) -> AsyncGenerator[AgentEvent, None]:
         """Send a user message and yield events as the agent responds.
 
-        The caller iterates the generator to receive streaming deltas, tool
-        events, and the final ``TurnDone`` event.
+        Yields ``TextDelta`` / ``ThinkDelta`` in real-time as the model
+        streams, then tool events, and finally ``TurnDone``.
         """
         self.history.append(Message(role="user", content=user_message))
 
         for _step in range(MAX_STEPS):
-            result = await kosong.step(
-                chat_provider=self._provider,
-                system_prompt=self.system_prompt,
-                toolset=self._toolset,
-                history=self.history,
-            )
+            queue: asyncio.Queue[AgentEvent | object] = asyncio.Queue()
+
+            def on_message_part(part: StreamedMessagePart) -> None:
+                if isinstance(part, TextPart):
+                    queue.put_nowait(TextDelta(text=part.text))
+                elif isinstance(part, ThinkPart):
+                    queue.put_nowait(ThinkDelta(text=part.think))
+
+            async def _run_step() -> kosong.StepResult:
+                try:
+                    return await kosong.step(
+                        chat_provider=self._provider,
+                        system_prompt=self.system_prompt,
+                        toolset=self._toolset,
+                        history=self.history,
+                        on_message_part=on_message_part,
+                    )
+                finally:
+                    queue.put_nowait(_SENTINEL)
+
+            task = asyncio.create_task(_run_step())
+
+            # Yield streaming deltas as they arrive from on_message_part
+            while True:
+                event = await queue.get()
+                if event is _SENTINEL:
+                    break
+                yield event  # type: ignore[misc]
+
+            result = await task  # re-raises if step failed
 
             self.history.append(result.message)
 
-            # No tool calls → we are done
+            # No tool calls → done
             if not result.tool_calls:
-                final_text = result.message.extract_text()
-                yield TurnDone(text=final_text)
+                yield TurnDone(text=result.message.extract_text())
                 return
 
             # Process tool calls
