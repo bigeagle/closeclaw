@@ -1,0 +1,13 @@
+version: 1
+agent:
+  name: ""
+  system_prompt_path: ./SYSTEM.md
+  system_prompt_args:
+    ROLE_ADDITIONAL: ""
+  tools:
+    - "closeclaw.agent_core.tools.shell:Shell"
+    - "closeclaw.agent_core.tools.read_file:ReadFile"
+    - "closeclaw.agent_core.tools.glob_tool:Glob"
+    - "closeclaw.agent_core.tools.grep:Grep"
+    - "closeclaw.agent_core.tools.write_file:WriteFile"
+    - "closeclaw.agent_core.tools.replace_file:StrReplaceFile"

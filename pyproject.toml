@@ -16,6 +16,7 @@ dependencies = [
     "click>=8.0.0",
     "python-telegram-bot>=21.0",
     "kimi-cli>=1.27",
+    "pykaos>=0.7.0",
 ]
 
 [project.scripts]

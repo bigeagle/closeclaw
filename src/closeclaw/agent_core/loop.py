@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 
@@ -12,16 +13,14 @@ import kosong
 from kosong.chat_provider import StreamedMessagePart
 from kosong.chat_provider.kimi import Kimi
 from kosong.message import Message, TextPart, ThinkPart
-from kosong.tooling.simple import SimpleToolset
-
-from closeclaw.agent_core.tools import BashTool
+from closeclaw.agent_core.agent_config import (
+    AgentConfig,
+    load_agent_config,
+    load_system_prompt,
+)
+from closeclaw.agent_core.loader import load_tools
+from closeclaw.agent_core.runtime import Runtime
 from closeclaw.config import Settings
-
-DEFAULT_SYSTEM_PROMPT = """\
-You are CloseClaw, a helpful AI assistant with access to a bash shell.
-Use the bash tool to run commands when the user asks you to interact with the system.
-Always be concise and helpful.\
-"""
 
 MAX_STEPS = 20
 
@@ -84,20 +83,31 @@ class AgentSession:
         self,
         settings: Settings,
         *,
-        system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+        agent_config: AgentConfig | None = None,
+        config_dir: Path | None = None,
     ) -> None:
         self.settings = settings
-        self.system_prompt = system_prompt
         self.history: list[Message] = []
 
+        # Load agent config
+        if agent_config is None:
+            agent_config = load_agent_config(config_dir)
+
+        # System prompt
+        self.system_prompt = load_system_prompt(agent_config, config_dir)
+
+        # Chat provider
         self._provider = Kimi(
             model=settings.kimi_model,
             api_key=settings.kimi_api_key,
             base_url=settings.kimi_base_url,
         )
 
-        self._toolset = SimpleToolset()
-        self._toolset += BashTool()
+        runtime = Runtime.from_cwd()
+        self._toolset = load_tools(agent_config.agent.tools, runtime)
+        logger.info(
+            "Loaded tools: {tools}", tools=[t.name for t in self._toolset.tools]
+        )
 
     # ── public API ────────────────────────────────────────────────────────
 
