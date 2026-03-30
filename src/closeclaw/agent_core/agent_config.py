@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+import os
 from pathlib import Path
 
 import yaml
@@ -54,4 +56,11 @@ def load_system_prompt(config: AgentConfig, config_dir: Path | None = None) -> s
         keep_trailing_newline=True,
     )
     template = env.get_template(config.agent.system_prompt_path)
-    return template.render(**config.agent.system_prompt_args).strip()
+    now = datetime.datetime.now(tz=datetime.timezone.utc).astimezone()
+    builtin_args = {
+        "AGENT_WORKING_DIR": os.getcwd(),
+        "SESSION_START_TIME": now,
+    }
+    # User-defined args override builtins
+    template_args = {**builtin_args, **config.agent.system_prompt_args}
+    return template.render(**template_args).strip()
