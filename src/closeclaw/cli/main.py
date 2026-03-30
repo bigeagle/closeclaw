@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import click
+from dotenv import load_dotenv
 from loguru import logger
 from rich.console import Console
 from rich.panel import Panel
@@ -42,6 +43,7 @@ def _setup_logging(verbose: bool) -> None:
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool, config_file: str) -> None:
     """CloseClaw – AI Agent on Telegram."""
+    load_dotenv()
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
     ctx.obj["config_file"] = str(Path(config_file).expanduser())

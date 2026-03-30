@@ -1,6 +1,10 @@
 """Configuration management using pydantic-settings.
 
-Priority (high → low): init kwargs > env vars > .env > config.yaml > defaults
+Priority (high → low): env vars > config.yaml > defaults
+
+``.env`` is loaded via ``load_dotenv()`` in the CLI entry point so that
+all environment variables are available to the entire process, not just
+pydantic-settings.
 """
 
 from __future__ import annotations
@@ -38,11 +42,9 @@ class AgentSettings(BaseModel):
 
 
 class Settings(BaseSettings):
-    """Application settings, loaded from env / .env / config.yaml."""
+    """Application settings, loaded from env vars / config.yaml."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
         case_sensitive=False,
     )
 
