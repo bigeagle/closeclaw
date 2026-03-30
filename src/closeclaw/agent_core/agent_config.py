@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import datetime
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
+import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
@@ -26,6 +28,44 @@ class AgentConfig(BaseModel):
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
 DEFAULT_AGENT_DIR = Path(__file__).parent.parent / "default_agent"
+
+
+# ── Skills ────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class SkillInfo:
+    """Metadata for a loaded skill."""
+
+    name: str
+    description: str
+    skill_md_path: str  # absolute path
+
+
+def _load_skills(workspace: Path) -> list[SkillInfo]:
+    """Scan ``<workspace>/skills/`` for valid skill directories."""
+    skills_dir = workspace / "skills"
+    if not skills_dir.is_dir():
+        return []
+    skills: list[SkillInfo] = []
+    for entry in sorted(skills_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        skill_md = entry / "SKILL.md"
+        if not skill_md.is_file():
+            continue
+        post = frontmatter.loads(skill_md.read_text())
+        skills.append(
+            SkillInfo(
+                name=post.get("name", entry.name),
+                description=post.get("description", ""),
+                skill_md_path=str(skill_md.resolve()),
+            )
+        )
+    return skills
+
+
+# ── Loading ───────────────────────────────────────────────────────────────────
 
 
 def load_agent_config(config_dir: Path | None = None) -> AgentConfig:
@@ -57,9 +97,15 @@ def load_system_prompt(config: AgentConfig, config_dir: Path | None = None) -> s
     )
     template = env.get_template(config.agent.system_prompt_path)
     now = datetime.datetime.now(tz=datetime.timezone.utc).astimezone()
+    workspace = Path(os.getcwd())
+    agents_md = workspace / "AGENTS.md"
+    memory_md = workspace / "MEMORY.md"
     builtin_args = {
-        "AGENT_WORKING_DIR": os.getcwd(),
+        "AGENT_WORKING_DIR": str(workspace),
         "SESSION_START_TIME": now,
+        "WORKSPACE_AGENTS_MD": agents_md.read_text() if agents_md.is_file() else "",
+        "AGENT_MEMORY_MD": memory_md.read_text() if memory_md.is_file() else "",
+        "AGENT_SKILLS": _load_skills(workspace),
     }
     # User-defined args override builtins
     template_args = {**builtin_args, **config.agent.system_prompt_args}

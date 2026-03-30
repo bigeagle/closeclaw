@@ -18,6 +18,7 @@ dependencies = [
     "jinja2>=3.0",
     "kimi-cli>=1.27",
     "pykaos>=0.7.0",
+    "python-frontmatter>=1.1.0",
 ]
 
 [project.scripts]
