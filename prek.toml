@@ -1,0 +1,52 @@
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+args = ["--markdown-linebreak-ext=md"]
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+
+[[repos.hooks]]
+id = "check-toml"
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+
+[[repos.hooks]]
+id = "detect-private-key"
+
+[[repos]]
+repo = "meta"
+
+[[repos.hooks]]
+id = "check-hooks-apply"
+
+[[repos.hooks]]
+id = "check-useless-excludes"
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "ruff-format"
+name = "ruff format"
+language = "system"
+entry = "uv run ruff format"
+types_or = ["python", "pyi"]
+
+[[repos.hooks]]
+id = "ruff-check"
+name = "ruff check"
+language = "system"
+entry = "uv run ruff check --fix"
+types_or = ["python", "pyi"]
+
+[[repos.hooks]]
+id = "python-compile"
+name = "python compile"
+language = "system"
+entry = "uv run python -m compileall src"
+files = "\\.py$"
+pass_filenames = false

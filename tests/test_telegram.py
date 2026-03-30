@@ -10,8 +10,6 @@ from closeclaw.channels.telegram import (
     _is_allowed,
     _truncate,
     _DRAFT_ID_MAX,
-    _next_draft_id,
-    TG_MSG_LIMIT,
 )
 from closeclaw.config import Settings
 

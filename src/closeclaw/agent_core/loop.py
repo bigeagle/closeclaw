@@ -39,18 +39,21 @@ class AgentEvent:
 @dataclass
 class TextDelta(AgentEvent):
     """A chunk of streamed text from the model."""
+
     text: str
 
 
 @dataclass
 class ThinkDelta(AgentEvent):
     """A chunk of model thinking/reasoning."""
+
     text: str
 
 
 @dataclass
 class ToolCallStart(AgentEvent):
     """The model invoked a tool."""
+
     name: str
     arguments: str
 
@@ -58,6 +61,7 @@ class ToolCallStart(AgentEvent):
 @dataclass
 class ToolCallDone(AgentEvent):
     """A tool call completed."""
+
     name: str
     output: str
     is_error: bool
@@ -66,6 +70,7 @@ class ToolCallDone(AgentEvent):
 @dataclass
 class TurnDone(AgentEvent):
     """The agent finished a full turn (no more tool calls)."""
+
     text: str
 
 
@@ -136,7 +141,10 @@ class AgentSession:
 
             result = await task  # re-raises if step failed
 
-            logger.debug("Assistant message: {msg}", msg=result.message.model_dump(exclude_none=True))
+            logger.debug(
+                "Assistant message: {msg}",
+                msg=result.message.model_dump(exclude_none=True),
+            )
             self.history.append(result.message)
 
             # No tool calls → done

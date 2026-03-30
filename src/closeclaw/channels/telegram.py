@@ -18,9 +18,6 @@ from telegram.ext import (
 from closeclaw.agent_core.loop import (
     AgentSession,
     TextDelta,
-    ToolCallDone,
-    ToolCallStart,
-    TurnDone,
 )
 from closeclaw.config import Settings
 
@@ -205,7 +202,9 @@ async def _stream_reply_edit(
                 message_id = msg.message_id
             else:
                 await context.bot.edit_message_text(
-                    text=display, chat_id=chat_id, message_id=message_id,
+                    text=display,
+                    chat_id=chat_id,
+                    message_id=message_id,
                 )
             last_edit = asyncio.get_event_loop().time()
         except Exception as exc:
@@ -223,7 +222,9 @@ async def _stream_reply_edit(
             await update.message.reply_text(display)  # type: ignore[union-attr]
         else:
             await context.bot.edit_message_text(
-                text=display, chat_id=chat_id, message_id=message_id,
+                text=display,
+                chat_id=chat_id,
+                message_id=message_id,
             )
     except Exception:
         pass
@@ -269,7 +270,9 @@ def run_telegram_debug(settings: Settings) -> None:
             text += (" " if text else "") + word
             try:
                 await ctx.bot.send_message_draft(
-                    chat_id=chat_id, draft_id=draft_id, text=text,
+                    chat_id=chat_id,
+                    draft_id=draft_id,
+                    text=text,
                 )
             except Exception as exc:
                 logger.warning("draft test failed: {e}", e=exc)
@@ -289,12 +292,14 @@ def run_telegram_debug(settings: Settings) -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _echo))
 
     async def _post_init(application: Application) -> None:
-        await application.bot.set_my_commands([
-            BotCommand("start", "Start the debug bot"),
-            BotCommand("ping", "Connectivity check"),
-            BotCommand("info", "Show user / chat info"),
-            BotCommand("draft", "Test sendMessageDraft streaming"),
-        ])
+        await application.bot.set_my_commands(
+            [
+                BotCommand("start", "Start the debug bot"),
+                BotCommand("ping", "Connectivity check"),
+                BotCommand("info", "Show user / chat info"),
+                BotCommand("draft", "Test sendMessageDraft streaming"),
+            ]
+        )
 
     app.post_init = _post_init
     app.run_polling(allowed_updates=Update.ALL_TYPES)
@@ -308,11 +313,7 @@ def run_telegram_bot(settings: Settings) -> None:
             "Please set it in .env or as an environment variable."
         )
 
-    app = (
-        Application.builder()
-        .token(settings.telegram_bot_token)
-        .build()
-    )
+    app = Application.builder().token(settings.telegram_bot_token).build()
     app.bot_data["settings"] = settings
 
     app.add_handler(CommandHandler("start", _cmd_start))
@@ -320,10 +321,12 @@ def run_telegram_bot(settings: Settings) -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_message))
 
     async def _post_init(application: Application) -> None:
-        await application.bot.set_my_commands([
-            BotCommand("start", "Start chatting"),
-            BotCommand("reset", "Reset conversation history"),
-        ])
+        await application.bot.set_my_commands(
+            [
+                BotCommand("start", "Start chatting"),
+                BotCommand("reset", "Reset conversation history"),
+            ]
+        )
 
     app.post_init = _post_init
     app.run_polling(allowed_updates=Update.ALL_TYPES)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import patch
 
-import pytest
 
 import kosong
 from kosong.message import Message, TextPart, ToolCall
@@ -43,7 +42,9 @@ def _make_step_result(
     for tc in tc_list:
         fut: asyncio.Future[ToolResult] = asyncio.get_event_loop().create_future()
         output = (tool_outputs or {}).get(tc.id, "")
-        fut.set_result(ToolResult(tool_call_id=tc.id, return_value=ToolOk(output=output)))
+        fut.set_result(
+            ToolResult(tool_call_id=tc.id, return_value=ToolOk(output=output))
+        )
         futures[tc.id] = fut
 
     return kosong.StepResult(
