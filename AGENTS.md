@@ -1,0 +1,2 @@
+- use `uv` for python
+- 使用 `kosong` 包来处理 agent loop 和 chat/llm provider，用 `uv pip show kosong` 可获得 kosong 的源码位置
