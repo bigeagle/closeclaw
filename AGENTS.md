@@ -2,3 +2,5 @@
     - `uv run` to run python script
     - `uv add` and `uv remove` to manage dependencies
 - 使用 `kosong` 包来处理 agent loop 和 chat/llm provider，用 `uv pip show kosong` 可获得 kosong 的源码位置
+- config 的修改要在 `config.example.yaml` 和 `.env.example`（仅各类 KEY 和 TOKEN）中体现
+- 新功能都要有对应的 test
