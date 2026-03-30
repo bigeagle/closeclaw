@@ -67,16 +67,12 @@ class TestLoadSkills:
 # ── WORKSPACE_AGENTS_MD in prompt ─────────────────────────────────────────────
 
 
-class TestWorkspaceAgentsMd:
-    def _render(
-        self, tmp_path, template_text, monkeypatch, *, agents_md=None, memory_md=None
-    ):
+class TestWorkspaceFiles:
+    def _render(self, tmp_path, template_text, monkeypatch, **files):
         workspace = tmp_path / "ws"
         workspace.mkdir(exist_ok=True)
-        if agents_md is not None:
-            (workspace / "AGENTS.md").write_text(agents_md)
-        if memory_md is not None:
-            (workspace / "MEMORY.md").write_text(memory_md)
+        for name, content in files.items():
+            (workspace / name).write_text(content)
         monkeypatch.chdir(workspace)
         config_dir = tmp_path / "cfg"
         config_dir.mkdir(exist_ok=True)
@@ -84,12 +80,14 @@ class TestWorkspaceAgentsMd:
         config = AgentConfig(agent=AgentSpec(system_prompt_path="prompt.md"))
         return load_system_prompt(config, config_dir)
 
+    # AGENTS.md
+
     def test_agents_md_loaded(self, tmp_path, monkeypatch):
         result = self._render(
             tmp_path,
             "{{ WORKSPACE_AGENTS_MD }}",
             monkeypatch,
-            agents_md="Project guidelines here.",
+            **{"AGENTS.md": "Project guidelines here."},
         )
         assert result == "Project guidelines here."
 
@@ -97,17 +95,64 @@ class TestWorkspaceAgentsMd:
         result = self._render(tmp_path, "[{{ WORKSPACE_AGENTS_MD }}]", monkeypatch)
         assert result == "[]"
 
+    # MEMORY.md
+
     def test_memory_md_loaded(self, tmp_path, monkeypatch):
         result = self._render(
             tmp_path,
             "{{ AGENT_MEMORY_MD }}",
             monkeypatch,
-            memory_md="User prefers dark mode.",
+            **{"MEMORY.md": "User prefers dark mode."},
         )
         assert result == "User prefers dark mode."
 
     def test_memory_md_missing(self, tmp_path, monkeypatch):
         result = self._render(tmp_path, "[{{ AGENT_MEMORY_MD }}]", monkeypatch)
+        assert result == "[]"
+
+    # IDENTITY.md
+
+    def test_identity_md_loaded(self, tmp_path, monkeypatch):
+        result = self._render(
+            tmp_path,
+            "{{ AGENT_IDENTITY }}",
+            monkeypatch,
+            **{"IDENTITY.md": "I am CloseClaw."},
+        )
+        assert result == "I am CloseClaw."
+
+    def test_identity_md_missing(self, tmp_path, monkeypatch):
+        result = self._render(tmp_path, "[{{ AGENT_IDENTITY }}]", monkeypatch)
+        assert result == "[]"
+
+    # SOUL.md
+
+    def test_soul_md_loaded(self, tmp_path, monkeypatch):
+        result = self._render(
+            tmp_path,
+            "{{ AGENT_SOUL }}",
+            monkeypatch,
+            **{"SOUL.md": "Be kind and helpful."},
+        )
+        assert result == "Be kind and helpful."
+
+    def test_soul_md_missing(self, tmp_path, monkeypatch):
+        result = self._render(tmp_path, "[{{ AGENT_SOUL }}]", monkeypatch)
+        assert result == "[]"
+
+    # USER.md
+
+    def test_user_md_loaded(self, tmp_path, monkeypatch):
+        result = self._render(
+            tmp_path,
+            "{{ USER_PROFILE }}",
+            monkeypatch,
+            **{"USER.md": "Name: Alice. Loves Python."},
+        )
+        assert result == "Name: Alice. Loves Python."
+
+    def test_user_md_missing(self, tmp_path, monkeypatch):
+        result = self._render(tmp_path, "[{{ USER_PROFILE }}]", monkeypatch)
         assert result == "[]"
 
 

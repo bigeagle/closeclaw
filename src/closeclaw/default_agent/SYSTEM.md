@@ -31,6 +31,24 @@ Skills are reusable capabilities that extend your abilities. Read a skill's
 </skill>
 {% endfor %}
 {% endif %}
+{% if AGENT_IDENTITY %}
+
+## Identity
+
+{{ AGENT_IDENTITY }}
+{% endif %}
+{% if AGENT_SOUL %}
+
+## Soul
+
+{{ AGENT_SOUL }}
+{% endif %}
+{% if USER_PROFILE %}
+
+## User
+
+{{ USER_PROFILE }}
+{% endif %}
 {% if WORKSPACE_AGENTS_MD %}
 
 ## Project Information

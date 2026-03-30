@@ -98,13 +98,19 @@ def load_system_prompt(config: AgentConfig, config_dir: Path | None = None) -> s
     template = env.get_template(config.agent.system_prompt_path)
     now = datetime.datetime.now(tz=datetime.timezone.utc).astimezone()
     workspace = Path(os.getcwd())
-    agents_md = workspace / "AGENTS.md"
-    memory_md = workspace / "MEMORY.md"
+
+    def _read(name: str) -> str:
+        p = workspace / name
+        return p.read_text() if p.is_file() else ""
+
     builtin_args = {
         "AGENT_WORKING_DIR": str(workspace),
         "SESSION_START_TIME": now,
-        "WORKSPACE_AGENTS_MD": agents_md.read_text() if agents_md.is_file() else "",
-        "AGENT_MEMORY_MD": memory_md.read_text() if memory_md.is_file() else "",
+        "AGENT_IDENTITY": _read("IDENTITY.md"),
+        "AGENT_SOUL": _read("SOUL.md"),
+        "USER_PROFILE": _read("USER.md"),
+        "WORKSPACE_AGENTS_MD": _read("AGENTS.md"),
+        "AGENT_MEMORY_MD": _read("MEMORY.md"),
         "AGENT_SKILLS": _load_skills(workspace),
     }
     # User-defined args override builtins
