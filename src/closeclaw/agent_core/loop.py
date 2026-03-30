@@ -136,6 +136,7 @@ class AgentSession:
 
             result = await task  # re-raises if step failed
 
+            logger.debug("Assistant message: {msg}", msg=result.message.model_dump(exclude_none=True))
             self.history.append(result.message)
 
             # No tool calls → done

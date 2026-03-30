@@ -297,7 +297,6 @@ def run_telegram_debug(settings: Settings) -> None:
         ])
 
     app.post_init = _post_init
-    logger.info("Starting Telegram debug bot …")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
@@ -327,5 +326,4 @@ def run_telegram_bot(settings: Settings) -> None:
         ])
 
     app.post_init = _post_init
-    logger.info("Starting Telegram bot …")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

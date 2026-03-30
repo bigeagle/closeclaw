@@ -20,7 +20,8 @@ console = Console()
 def _setup_logging(verbose: bool) -> None:
     logger.remove()
     level = "DEBUG" if verbose else "INFO"
-    logger.add(sys.stderr, level=level, format="<level>{message}</level>")
+    fmt = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} | {message}"
+    logger.add(sys.stderr, level=level, format=fmt)
     if verbose:
         logger.enable("kosong")
 
@@ -60,7 +61,7 @@ async def _chat_loop() -> None:
     settings = get_settings()
 
     if not settings.kimi_api_key:
-        console.print("[red]Error:[/red] KIMI_API_KEY is not set.")
+        logger.error("KIMI_API_KEY is not set.")
         raise SystemExit(1)
 
     session = AgentSession(settings)
@@ -118,21 +119,24 @@ async def _chat_loop() -> None:
 
 
 @cli.command()
+@click.option("--debug", is_flag=True, help="Set log level to DEBUG.")
 @click.pass_context
-def gateway(ctx: click.Context) -> None:
+def gateway(ctx: click.Context, debug: bool) -> None:
     """Start the Telegram bot with the full agent loop."""
+    if debug:
+        _setup_logging(verbose=True)
     from closeclaw.channels.telegram import run_telegram_bot
 
     settings = get_settings()
 
     if not settings.kimi_api_key:
-        console.print("[red]Error:[/red] KIMI_API_KEY is not set.")
+        logger.error("KIMI_API_KEY is not set.")
         raise SystemExit(1)
     if not settings.telegram_bot_token:
-        console.print("[red]Error:[/red] TELEGRAM_BOT_TOKEN is not set.")
+        logger.error("TELEGRAM_BOT_TOKEN is not set.")
         raise SystemExit(1)
 
-    console.print("[green]Starting Telegram gateway …[/green]")
+    logger.info("Starting Telegram gateway …")
     run_telegram_bot(settings)
 
 
@@ -148,10 +152,10 @@ def telegram(ctx: click.Context) -> None:
     settings = get_settings()
 
     if not settings.telegram_bot_token:
-        console.print("[red]Error:[/red] TELEGRAM_BOT_TOKEN is not set.")
+        logger.error("TELEGRAM_BOT_TOKEN is not set.")
         raise SystemExit(1)
 
-    console.print("[green]Starting Telegram debug bot …[/green]")
+    logger.info("Starting Telegram debug bot …")
     run_telegram_debug(settings)
 
 
