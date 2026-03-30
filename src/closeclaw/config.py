@@ -78,9 +78,7 @@ class Settings(BaseSettings):
             init_settings,
             env_settings,
             dotenv_settings,
-            YamlConfigSettingsSource(
-                settings_cls, yaml_file=_config_file or "config.yaml"
-            ),
+            YamlConfigSettingsSource(settings_cls, yaml_file=_config_file),
             file_secret_settings,
         )
 

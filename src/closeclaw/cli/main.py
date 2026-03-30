@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
 
 import click
 from loguru import logger
@@ -33,16 +34,17 @@ def _setup_logging(verbose: bool) -> None:
     "-c",
     "--config",
     "config_file",
-    type=click.Path(exists=True, dir_okay=False),
-    default=None,
+    type=click.Path(dir_okay=False),
+    default="~/.closeclaw/config.yaml",
+    show_default=True,
     help="Path to config.yaml.",
 )
 @click.pass_context
-def cli(ctx: click.Context, verbose: bool, config_file: str | None) -> None:
+def cli(ctx: click.Context, verbose: bool, config_file: str) -> None:
     """CloseClaw – AI Agent on Telegram."""
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
-    ctx.obj["config_file"] = config_file
+    ctx.obj["config_file"] = str(Path(config_file).expanduser())
     _setup_logging(verbose)
 
 
