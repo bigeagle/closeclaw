@@ -114,13 +114,13 @@ async def _chat_loop() -> None:
         console.print()
 
 
-# ── telegram command ──────────────────────────────────────────────────────────
+# ── gateway command (full agent bot) ─────────────────────────────────────────
 
 
 @cli.command()
 @click.pass_context
-def telegram(ctx: click.Context) -> None:
-    """Start the Telegram bot."""
+def gateway(ctx: click.Context) -> None:
+    """Start the Telegram bot with the full agent loop."""
     from closeclaw.channels.telegram import run_telegram_bot
 
     settings = get_settings()
@@ -132,8 +132,27 @@ def telegram(ctx: click.Context) -> None:
         console.print("[red]Error:[/red] TELEGRAM_BOT_TOKEN is not set.")
         raise SystemExit(1)
 
-    console.print("[green]Starting Telegram bot …[/green]")
+    console.print("[green]Starting Telegram gateway …[/green]")
     run_telegram_bot(settings)
+
+
+# ── telegram command (debug bot) ─────────────────────────────────────────────
+
+
+@cli.command()
+@click.pass_context
+def telegram(ctx: click.Context) -> None:
+    """Run a minimal Telegram debug bot (echo, ping, draft test)."""
+    from closeclaw.channels.telegram import run_telegram_debug
+
+    settings = get_settings()
+
+    if not settings.telegram_bot_token:
+        console.print("[red]Error:[/red] TELEGRAM_BOT_TOKEN is not set.")
+        raise SystemExit(1)
+
+    console.print("[green]Starting Telegram debug bot …[/green]")
+    run_telegram_debug(settings)
 
 
 # ── version command ───────────────────────────────────────────────────────────

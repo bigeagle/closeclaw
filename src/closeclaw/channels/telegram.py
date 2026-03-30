@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from loguru import logger
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
@@ -232,6 +232,75 @@ async def _stream_reply_edit(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
+def run_telegram_debug(settings: Settings) -> None:
+    """Run a minimal debug bot for testing Telegram connectivity."""
+    if not settings.telegram_bot_token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is not set.")
+
+    app = Application.builder().token(settings.telegram_bot_token).build()
+
+    async def _cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        assert update.message
+        await update.message.reply_text("🛠 Debug bot is running!")
+
+    async def _cmd_ping(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        assert update.message
+        await update.message.reply_text("pong 🏓")
+
+    async def _cmd_info(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        assert update.message and update.effective_user and update.effective_chat
+        u = update.effective_user
+        c = update.effective_chat
+        lines = [
+            f"user_id:   {u.id}",
+            f"username:  @{u.username}" if u.username else "username:  (none)",
+            f"chat_id:   {c.id}",
+            f"chat_type: {c.type}",
+        ]
+        await update.message.reply_text("\n".join(lines))
+
+    async def _cmd_draft(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Test sendMessageDraft streaming."""
+        assert update.message and update.effective_chat
+        chat_id = update.effective_chat.id
+        draft_id = _allocate_draft_id()
+        text = ""
+        for word in "Hello this is a streaming draft test ✅".split():
+            text += (" " if text else "") + word
+            try:
+                await ctx.bot.send_message_draft(
+                    chat_id=chat_id, draft_id=draft_id, text=text,
+                )
+            except Exception as exc:
+                logger.warning("draft test failed: {e}", e=exc)
+                await update.message.reply_text(f"❌ sendMessageDraft failed: {exc}")
+                return
+            await asyncio.sleep(0.4)
+        await update.message.reply_text(text)
+
+    async def _echo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        assert update.message
+        await update.message.reply_text(f"echo: {update.message.text}")
+
+    app.add_handler(CommandHandler("start", _cmd_start))
+    app.add_handler(CommandHandler("ping", _cmd_ping))
+    app.add_handler(CommandHandler("info", _cmd_info))
+    app.add_handler(CommandHandler("draft", _cmd_draft))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _echo))
+
+    async def _post_init(application: Application) -> None:
+        await application.bot.set_my_commands([
+            BotCommand("start", "Start the debug bot"),
+            BotCommand("ping", "Connectivity check"),
+            BotCommand("info", "Show user / chat info"),
+            BotCommand("draft", "Test sendMessageDraft streaming"),
+        ])
+
+    app.post_init = _post_init
+    logger.info("Starting Telegram debug bot …")
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
 def run_telegram_bot(settings: Settings) -> None:
     """Build and run the Telegram bot (blocking)."""
     if not settings.telegram_bot_token:
@@ -251,5 +320,12 @@ def run_telegram_bot(settings: Settings) -> None:
     app.add_handler(CommandHandler("reset", _cmd_reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_message))
 
+    async def _post_init(application: Application) -> None:
+        await application.bot.set_my_commands([
+            BotCommand("start", "Start chatting"),
+            BotCommand("reset", "Reset conversation history"),
+        ])
+
+    app.post_init = _post_init
     logger.info("Starting Telegram bot …")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
