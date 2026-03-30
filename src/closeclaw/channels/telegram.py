@@ -313,6 +313,10 @@ def run_telegram_bot(settings: Settings) -> None:
             "Please set it in .env or as an environment variable."
         )
 
+    # Initialise agent loop early so config/workspace/tools are validated
+    # and startup info is logged before we start polling.
+    AgentSession(settings)
+
     app = Application.builder().token(settings.telegram_bot_token).build()
     app.bot_data["settings"] = settings
 

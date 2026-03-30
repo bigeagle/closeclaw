@@ -94,11 +94,20 @@ class AgentSession:
         workspace = settings.agent.workspace
         if workspace:
             os.chdir(workspace)
-            logger.info("Changed working directory to {ws}", ws=workspace)
+        logger.info("Workspace: {ws}", ws=os.getcwd())
 
         # Load agent config
+        agent_file = settings.agent.agent_file
         if agent_config is None:
+            if agent_file:
+                config_dir = Path(agent_file).parent
             agent_config = load_agent_config(config_dir)
+        logger.info(
+            "Agent: {name} (config={cfg})",
+            name=agent_config.agent.name or "default",
+            cfg=agent_file or "built-in",
+        )
+        logger.info("Model: {model}", model=settings.kimi_model)
 
         # System prompt
         self.system_prompt = load_system_prompt(agent_config, config_dir)

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -24,6 +24,14 @@ class AgentSettings(BaseModel):
 
     agent_file: str = ""
     workspace: str = ""
+
+    @model_validator(mode="after")
+    def _expand_paths(self) -> AgentSettings:
+        if self.agent_file:
+            self.agent_file = str(Path(self.agent_file).expanduser())
+        if self.workspace:
+            self.workspace = str(Path(self.workspace).expanduser())
+        return self
 
 
 class Settings(BaseSettings):
