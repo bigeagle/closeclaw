@@ -21,7 +21,7 @@ from closeclaw.agent_core.loop import (
 )
 from closeclaw.config import Settings
 
-# Per-user agent sessions (keyed by Telegram user ID).
+# Per-chat agent sessions (keyed by Telegram chat ID).
 _sessions: dict[int, AgentSession] = {}
 
 # Module-level draft_id counter (monotonically increasing, wraps at INT32 max).
@@ -40,10 +40,10 @@ def _allocate_draft_id() -> int:
     return _next_draft_id
 
 
-def _get_session(user_id: int, settings: Settings) -> AgentSession:
-    if user_id not in _sessions:
-        _sessions[user_id] = AgentSession(settings)
-    return _sessions[user_id]
+def _get_session(chat_id: int, settings: Settings) -> AgentSession:
+    if chat_id not in _sessions:
+        _sessions[chat_id] = AgentSession(settings, chat_id=chat_id)
+    return _sessions[chat_id]
 
 
 def _is_allowed(user_id: int, settings: Settings) -> bool:
@@ -76,7 +76,7 @@ async def _cmd_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     settings: Settings = context.bot_data["settings"]
     if not _is_allowed(user_id, settings):
         return
-    _sessions.pop(user_id, None)
+    _sessions.pop(update.effective_chat.id, None)
     await update.effective_chat.send_message("🔄 Session reset.")
 
 
@@ -95,7 +95,7 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     logger.info("[TG] user={uid} msg={text}", uid=user_id, text=text[:80])
 
-    session = _get_session(user_id, settings)
+    session = _get_session(update.effective_chat.id, settings)
     is_private = update.effective_chat.type == "private"
 
     if is_private:

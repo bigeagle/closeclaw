@@ -24,6 +24,7 @@ class AgentSettings(BaseModel):
 
     agent_file: str = ""
     workspace: str = ""
+    session_dir: str = "~/.closeclaw/sessions"
 
     @model_validator(mode="after")
     def _expand_paths(self) -> AgentSettings:
@@ -31,6 +32,8 @@ class AgentSettings(BaseModel):
             self.agent_file = str(Path(self.agent_file).expanduser())
         if self.workspace:
             self.workspace = str(Path(self.workspace).expanduser())
+        if self.session_dir:
+            self.session_dir = str(Path(self.session_dir).expanduser())
         return self
 
 

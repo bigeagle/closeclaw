@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
+import json
 import os
+import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
@@ -84,10 +87,13 @@ class AgentSession:
         self,
         settings: Settings,
         *,
+        chat_id: int | None = None,
         agent_config: AgentConfig | None = None,
         config_dir: Path | None = None,
     ) -> None:
         self.settings = settings
+        self.chat_id = chat_id
+        self.session_id = str(uuid.uuid4())
         self.history: list[Message] = []
 
         # Apply workspace before anything that depends on cwd
@@ -125,6 +131,56 @@ class AgentSession:
             "Loaded tools: {tools}", tools=[t.name for t in self._toolset.tools]
         )
 
+        # Session persistence
+        session_dir = settings.agent.session_dir
+        self._session_dir: Path | None = None
+        if session_dir and chat_id is not None:
+            self._session_dir = Path(session_dir) / str(chat_id)
+            self._session_dir.mkdir(parents=True, exist_ok=True)
+
+        if self._session_dir and chat_id is not None:
+            loaded = self._find_latest_session()
+            if loaded:
+                self.session_id = loaded["session_id"]
+                self.history = [Message.model_validate(m) for m in loaded["history"]]
+                logger.info(
+                    "Resumed session {sid} ({n} messages)",
+                    sid=self.session_id,
+                    n=len(self.history),
+                )
+            else:
+                logger.info("New session {sid}", sid=self.session_id)
+
+    # ── persistence ────────────────────────────────────────────────────
+
+    def _find_latest_session(self) -> dict | None:
+        """Find the most recent session file for ``self.chat_id``."""
+        assert self._session_dir
+        files = sorted(
+            self._session_dir.glob("*.json"),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )
+        for f in files:
+            try:
+                return json.loads(f.read_text())
+            except json.JSONDecodeError, OSError:
+                continue
+        return None
+
+    def _save(self) -> None:
+        """Persist session to disk."""
+        if not self._session_dir or self.chat_id is None:
+            return
+        path = self._session_dir / f"{self.session_id}.json"
+        data = {
+            "session_id": self.session_id,
+            "chat_id": self.chat_id,
+            "updated_at": datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+            "history": [m.model_dump(exclude_none=True) for m in self.history],
+        }
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
     # ── public API ────────────────────────────────────────────────────────
 
     async def chat(self, user_message: str) -> AsyncGenerator[AgentEvent, None]:
@@ -134,7 +190,15 @@ class AgentSession:
         streams, then tool events, and finally ``TurnDone``.
         """
         self.history.append(Message(role="user", content=user_message))
+        try:
+            async for event in self._chat_loop():
+                yield event
+        finally:
+            self._save()
 
+    # ── internal ─────────────────────────────────────────────────────────
+
+    async def _chat_loop(self) -> AsyncGenerator[AgentEvent, None]:
         for _step in range(MAX_STEPS):
             queue: asyncio.Queue[AgentEvent | object] = asyncio.Queue()
 
