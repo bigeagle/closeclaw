@@ -43,7 +43,7 @@ def _setup_logging(verbose: bool) -> None:
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool, config_file: str) -> None:
     """CloseClaw – AI Agent on Telegram."""
-    load_dotenv()
+    load_dotenv(Path.cwd() / ".env")
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
     ctx.obj["config_file"] = str(Path(config_file).expanduser())
