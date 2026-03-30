@@ -17,3 +17,5 @@ agent:
   agent_file: ""
   # Agent working directory (empty = cwd)
   workspace: ""
+  # Session storage directory
+  session_dir: "~/.closeclaw/sessions"
