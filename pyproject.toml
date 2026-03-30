@@ -1,20 +1,25 @@
 [project]
 name = "closeclaw"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI Agent on Telegram, powered by Kimi"
 readme = "README.md"
 authors = [
     { name = "Justin Wong", email = "justin.w.xd@gmail.com" }
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "dotenv>=0.9.9",
     "kosong>=0.46.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
     "pyyaml>=6.0.3",
+    "loguru>=0.7.0",
+    "rich>=13.0.0",
+    "click>=8.0.0",
+    "python-telegram-bot>=21.0",
 ]
 
 [project.scripts]
-closeclaw = "closeclaw:main"
+closeclaw = "closeclaw.cli.main:cli"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
