@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 
 
@@ -38,14 +39,19 @@ def load_agent_config(config_dir: Path | None = None) -> AgentConfig:
 
 
 def load_system_prompt(config: AgentConfig, config_dir: Path | None = None) -> str:
-    """Read the system prompt file and apply template args."""
+    """Read the system prompt file and render it as a Jinja2 template.
+
+    Uses ``FileSystemLoader`` rooted at *config_dir* so that the template
+    can use ``{% include %}`` and other Jinja2 directives.
+    """
     if config_dir is None:
         config_dir = DEFAULT_AGENT_DIR
     prompt_path = config_dir / config.agent.system_prompt_path
     if not prompt_path.exists():
         return ""
-    text = prompt_path.read_text()
-    # Simple {KEY} replacement from system_prompt_args
-    for key, value in config.agent.system_prompt_args.items():
-        text = text.replace(f"{{{key}}}", value)
-    return text.strip()
+    env = Environment(
+        loader=FileSystemLoader(str(config_dir)),
+        keep_trailing_newline=True,
+    )
+    template = env.get_template(config.agent.system_prompt_path)
+    return template.render(**config.agent.system_prompt_args).strip()

@@ -339,6 +339,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "jinja2" },
     { name = "kimi-cli" },
     { name = "kosong" },
     { name = "pydantic-settings" },
@@ -360,6 +361,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
+    { name = "jinja2", specifier = ">=3.0" },
     { name = "kimi-cli", specifier = ">=1.27" },
     { name = "kosong", specifier = ">=0.46.0" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
