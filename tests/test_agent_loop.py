@@ -1,0 +1,159 @@
+"""Tests for closeclaw.agent_core.loop (AgentSession)."""
+
+from __future__ import annotations
+
+import asyncio
+from unittest.mock import patch
+
+import pytest
+
+import kosong
+from kosong.message import Message, TextPart, ToolCall
+from kosong.tooling import ToolOk, ToolResult
+
+from closeclaw.agent_core.loop import (
+    AgentSession,
+    TextDelta,
+    ToolCallDone,
+    ToolCallStart,
+    TurnDone,
+)
+from closeclaw.config import Settings
+
+
+def _make_settings() -> Settings:
+    return Settings(
+        _env_file=None,
+        kimi_api_key="fake-key",
+        kimi_model="test-model",
+        kimi_base_url="https://fake.test",
+    )
+
+
+def _make_step_result(
+    *,
+    content: str = "",
+    tool_calls: list[ToolCall] | None = None,
+    tool_outputs: dict[str, str] | None = None,
+) -> kosong.StepResult:
+    """Build a StepResult, optionally with pre-resolved tool futures."""
+    tc_list = tool_calls or []
+    futures: dict[str, asyncio.Future[ToolResult]] = {}
+
+    for tc in tc_list:
+        fut: asyncio.Future[ToolResult] = asyncio.get_event_loop().create_future()
+        output = (tool_outputs or {}).get(tc.id, "")
+        fut.set_result(ToolResult(tool_call_id=tc.id, return_value=ToolOk(output=output)))
+        futures[tc.id] = fut
+
+    return kosong.StepResult(
+        id="test",
+        message=Message(role="assistant", content=content, tool_calls=tc_list or None),
+        usage=None,
+        tool_calls=tc_list,
+        _tool_result_futures=futures,
+    )
+
+
+class TestSimpleResponse:
+    async def test_text_deltas_and_turn_done(self):
+        """No tool calls → TextDelta stream + TurnDone."""
+
+        async def mock_step(*_args, **kwargs):
+            omp = kwargs.get("on_message_part")
+            if omp:
+                omp(TextPart(text="Hello"))
+                omp(TextPart(text=" world"))
+            return _make_step_result(content="Hello world")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            events = [e async for e in session.chat("Hi")]
+
+        deltas = [e for e in events if isinstance(e, TextDelta)]
+        assert [d.text for d in deltas] == ["Hello", " world"]
+
+        dones = [e for e in events if isinstance(e, TurnDone)]
+        assert len(dones) == 1
+        assert dones[0].text == "Hello world"
+
+    async def test_history_appended(self):
+        """User + assistant messages are added to history."""
+
+        async def mock_step(*_args, **kwargs):
+            return _make_step_result(content="reply")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            _ = [e async for e in session.chat("hello")]
+
+        assert len(session.history) == 2
+        assert session.history[0].role == "user"
+        assert session.history[1].role == "assistant"
+
+
+class TestToolCallLoop:
+    async def test_tool_call_then_final_response(self):
+        """Step 1: tool call → Step 2: final text."""
+        call_count = 0
+
+        async def mock_step(*_args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            omp = kwargs.get("on_message_part")
+
+            if call_count == 1:
+                tc = ToolCall(
+                    id="tc-1",
+                    function=ToolCall.FunctionBody(
+                        name="bash", arguments='{"command":"date"}'
+                    ),
+                )
+                return _make_step_result(
+                    tool_calls=[tc], tool_outputs={"tc-1": "Mon Mar 30"}
+                )
+            else:
+                if omp:
+                    omp(TextPart(text="Today is March 30."))
+                return _make_step_result(content="Today is March 30.")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            events = [e async for e in session.chat("date?")]
+
+        types = [type(e).__name__ for e in events]
+        assert "ToolCallStart" in types
+        assert "ToolCallDone" in types
+        assert "TextDelta" in types
+        assert "TurnDone" in types
+
+        tc_start = next(e for e in events if isinstance(e, ToolCallStart))
+        assert tc_start.name == "bash"
+
+        tc_done = next(e for e in events if isinstance(e, ToolCallDone))
+        assert tc_done.output == "Mon Mar 30"
+        assert tc_done.is_error is False
+
+    async def test_tool_result_in_history(self):
+        """Tool message is added to history between steps."""
+        call_count = 0
+
+        async def mock_step(*_args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                tc = ToolCall(
+                    id="tc-1",
+                    function=ToolCall.FunctionBody(name="bash", arguments="{}"),
+                )
+                return _make_step_result(
+                    tool_calls=[tc], tool_outputs={"tc-1": "output"}
+                )
+            return _make_step_result(content="done")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            _ = [e async for e in session.chat("go")]
+
+        roles = [m.role for m in session.history]
+        assert roles == ["user", "assistant", "tool", "assistant"]
