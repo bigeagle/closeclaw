@@ -20,6 +20,8 @@ dependencies = [
     "pykaos>=0.7.0",
     "python-frontmatter>=1.1.0",
     "telegramify-markdown>=1.1.1",
+    "fastapi>=0.135.2",
+    "uvicorn>=0.42.0",
 ]
 
 [project.scripts]

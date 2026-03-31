@@ -41,6 +41,14 @@ class AgentSettings(BaseModel):
         return self
 
 
+class HeartbeatSettings(BaseModel):
+    """Heartbeat configuration."""
+
+    enabled: bool = False
+    interval: int = 0  # seconds between heartbeats, 0 = no periodic trigger
+    prompt: str = ""  # the prompt sent to the forked session
+
+
 class Settings(BaseSettings):
     """Application settings, loaded from env vars / config.yaml."""
 
@@ -64,6 +72,12 @@ class Settings(BaseSettings):
 
     # --- Main session ---
     main_session_chat_id: int = 0
+
+    # --- Gateway API ---
+    api_port: int = 8265
+
+    # --- Heartbeat ---
+    heartbeat: HeartbeatSettings = HeartbeatSettings()
 
     # --- Agent ---
     agent: AgentSettings = AgentSettings()

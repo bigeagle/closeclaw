@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import datetime
 import html
 
 from loguru import logger
@@ -31,6 +32,12 @@ from closeclaw.config import Settings
 _sessions: dict[int, AgentSession] = {}
 
 TG_MSG_LIMIT = 4096
+
+# Protects main-session history from concurrent heartbeat write-back.
+_heartbeat_lock = asyncio.Lock()
+
+# Ensures only one heartbeat runs at a time.
+_heartbeat_run_lock = asyncio.Lock()
 
 
 def _get_session(chat_id: int, settings: Settings) -> AgentSession:
@@ -191,8 +198,13 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return
         user_message = _format_user_message(update)
 
-    session = _get_session(update.effective_chat.id, settings)
-    await _stream_reply(update, context, session, user_message)
+    chat_id = update.effective_chat.id
+    session = _get_session(chat_id, settings)
+    if chat_id == settings.main_session_chat_id:
+        async with _heartbeat_lock:
+            await _stream_reply(update, context, session, user_message)
+    else:
+        await _stream_reply(update, context, session, user_message)
 
 
 # ── Streaming reply via edit-message ──────────────────────────────────────────
@@ -284,6 +296,79 @@ async def _stream_reply(
         typing_task.cancel()
 
 
+# ── Heartbeat ────────────────────────────────────────────────────────────────
+
+
+async def _run_heartbeat(bot, settings: Settings, *, prompt_override: str = "") -> None:
+    """Execute one heartbeat cycle: fork → run → maybe write back."""
+    if _heartbeat_run_lock.locked():
+        logger.info("Heartbeat already running, skipping")
+        return
+    if not settings.heartbeat.enabled:
+        logger.debug("Heartbeat disabled, skipping")
+        return
+    async with _heartbeat_run_lock:
+        await _run_heartbeat_inner(bot, settings, prompt_override=prompt_override)
+
+
+async def _run_heartbeat_inner(
+    bot, settings: Settings, *, prompt_override: str = ""
+) -> None:
+    chat_id = settings.main_session_chat_id
+    if not chat_id:
+        logger.warning("No main_session_chat_id configured, skipping heartbeat")
+        return
+
+    prompt = prompt_override or settings.heartbeat.prompt
+    if not prompt:
+        logger.warning("No heartbeat prompt configured, skipping")
+        return
+
+    main_session = _get_session(chat_id, settings)
+    history_len = len(main_session.history)
+    forked = main_session.fork()
+
+    logger.info("Heartbeat: running forked session (history={n})…", n=history_len)
+
+    timestamp = datetime.datetime.now().astimezone().isoformat()
+    wrapped = (
+        f'<system-heartbeat timestamp="{timestamp}">\n{prompt}\n</system-heartbeat>'
+    )
+
+    accumulated_text = ""
+    async for event in forked.chat(wrapped):
+        if isinstance(event, TextDelta):
+            accumulated_text += event.text
+        elif isinstance(event, ImageOutput):
+            await _send_photo(bot, chat_id, event)
+
+    # Check whether the agent decided nothing needs to happen.
+    if "HEARTBEAT_OK" in accumulated_text or "NO_REPLY" in accumulated_text:
+        logger.info("Heartbeat: silent (agent replied HEARTBEAT_OK / NO_REPLY)")
+        return
+
+    # ── Write-back phase ──────────────────────────────────────────────
+    logger.info("Heartbeat: writing back to main session")
+
+    # Send text to Telegram main chat.
+    if accumulated_text.strip():
+        display = _truncate(accumulated_text)
+        try:
+            mdv2 = markdownify(display)
+            await bot.send_message(chat_id, mdv2, parse_mode=ParseMode.MARKDOWN_V2)
+        except Exception:
+            try:
+                await bot.send_message(chat_id, display)
+            except Exception as exc:
+                logger.warning("Heartbeat send_message failed: {e}", e=exc)
+
+    # Splice forked history back into the main session.
+    delta = forked.history[history_len:]
+    async with _heartbeat_lock:
+        main_session.history.extend(delta)
+        main_session._save()
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
@@ -361,8 +446,12 @@ def run_telegram_debug(settings: Settings) -> None:
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
-def run_telegram_bot(settings: Settings) -> None:
-    """Build and run the Telegram bot (blocking)."""
+def build_telegram_app(settings: Settings) -> Application:
+    """Build the Telegram ``Application`` (handlers only, no lifecycle).
+
+    The caller is responsible for calling ``initialize()``, ``start()``,
+    ``updater.start_polling()``, and the corresponding shutdown methods.
+    """
     if not settings.telegram_bot_token:
         raise RuntimeError(
             "TELEGRAM_BOT_TOKEN is not set. "
@@ -387,12 +476,6 @@ def run_telegram_bot(settings: Settings) -> None:
                 BotCommand("reset", "Reset conversation history"),
             ]
         )
-        if settings.main_session_chat_id:
-            logger.info(
-                "Pre-warming main session for chat {cid}",
-                cid=settings.main_session_chat_id,
-            )
-            _get_session(settings.main_session_chat_id, settings)
 
     app.post_init = _post_init
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    return app

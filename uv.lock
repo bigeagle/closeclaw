@@ -339,6 +339,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "fastapi" },
     { name = "jinja2" },
     { name = "kimi-cli" },
     { name = "kosong" },
@@ -350,6 +351,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "telegramify-markdown" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -363,6 +365,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
+    { name = "fastapi", specifier = ">=0.135.2" },
     { name = "jinja2", specifier = ">=3.0" },
     { name = "kimi-cli", specifier = ">=1.27" },
     { name = "kosong", specifier = ">=0.46.0" },
@@ -374,6 +377,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "telegramify-markdown", specifier = ">=1.1.1" },
+    { name = "uvicorn", specifier = ">=0.42.0" },
 ]
 
 [package.metadata.requires-dev]

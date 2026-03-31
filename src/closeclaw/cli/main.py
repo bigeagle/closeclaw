@@ -144,7 +144,7 @@ def gateway(ctx: click.Context, debug: bool) -> None:
     """Start the Telegram bot with the full agent loop."""
     if debug:
         _setup_logging(verbose=True)
-    from closeclaw.channels.telegram import run_telegram_bot
+    from closeclaw.api import run_gateway
 
     settings = get_settings(config_file=ctx.obj.get("config_file"))
 
@@ -155,8 +155,8 @@ def gateway(ctx: click.Context, debug: bool) -> None:
         logger.error("TELEGRAM_BOT_TOKEN is not set.")
         raise SystemExit(1)
 
-    logger.info("Starting Telegram gateway …")
-    run_telegram_bot(settings)
+    logger.info("Starting gateway …")
+    run_gateway(settings)
 
 
 # ── telegram command (debug bot) ─────────────────────────────────────────────
@@ -176,6 +176,38 @@ def telegram(ctx: click.Context) -> None:
 
     logger.info("Starting Telegram debug bot …")
     run_telegram_debug(settings)
+
+
+# ── heartbeat command ─────────────────────────────────────────────────────
+
+
+@cli.command()
+@click.option("-p", "--prompt", default="", help="Override the heartbeat prompt.")
+@click.pass_context
+def heartbeat(ctx: click.Context, prompt: str) -> None:
+    """Trigger a heartbeat on the running gateway."""
+    import json
+    import urllib.request
+
+    settings = get_settings(config_file=ctx.obj.get("config_file"))
+    port = settings.api_port
+    if not port:
+        console.print("[red]api_port is not configured.[/red]")
+        raise SystemExit(1)
+    url = f"http://127.0.0.1:{port}/heartbeat"
+    body = json.dumps({"prompt": prompt}).encode() if prompt else b"{}"
+    req = urllib.request.Request(
+        url,
+        method="POST",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            console.print(f"[green]Heartbeat triggered ({resp.status})[/green]")
+    except Exception as exc:
+        console.print(f"[red]Failed to reach gateway: {exc}[/red]")
+        raise SystemExit(1)
 
 
 # ── version command ───────────────────────────────────────────────────────────

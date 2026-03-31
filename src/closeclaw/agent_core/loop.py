@@ -191,6 +191,25 @@ class AgentSession:
         }
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
+    def fork(self) -> AgentSession:
+        """Create a disposable copy with shared provider/tools and copied history.
+
+        The fork shares the chat provider, toolset, and system prompt with
+        the original session but gets an independent deep-copy of the
+        conversation history.  Persistence is disabled (``_session_dir`` is
+        ``None``) so calling ``_save()`` on the fork is a no-op.
+        """
+        clone = object.__new__(AgentSession)
+        clone.settings = self.settings
+        clone.chat_id = None
+        clone.session_id = str(uuid.uuid4())
+        clone.history = [m.model_copy(deep=True) for m in self.history]
+        clone.system_prompt = self.system_prompt
+        clone._provider = self._provider
+        clone._toolset = self._toolset
+        clone._session_dir = None
+        return clone
+
     # ── public API ────────────────────────────────────────────────────────
 
     async def chat(

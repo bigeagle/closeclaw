@@ -18,6 +18,17 @@
 # Pre-warm an agent session for this Telegram chat on gateway startup.
 # main_session_chat_id: 12345
 
+# --- Gateway API ---
+api_port: 8265
+
+# --- Heartbeat ---
+# heartbeat:
+#   enabled: false
+#   interval: 3600            # seconds, 0 = no periodic trigger
+#   prompt: |
+#     <heartbeat />
+#     Check workspace. Reply HEARTBEAT_OK if nothing needs attention.
+
 # --- Agent ---
 agent:
   # Path to agent.yaml (empty = built-in default)

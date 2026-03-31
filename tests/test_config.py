@@ -47,6 +47,16 @@ class TestDefaults:
         s = _settings()
         assert s.main_session_chat_id == 0
 
+    def test_heartbeat_defaults(self):
+        s = _settings()
+        assert s.heartbeat.enabled is False
+        assert s.heartbeat.interval == 0
+        assert s.heartbeat.prompt == ""
+
+    def test_api_port_default(self):
+        s = _settings()
+        assert s.api_port == 8265
+
 
 # ── Env overrides ─────────────────────────────────────────────────────────────
 
@@ -134,3 +144,16 @@ class TestYamlConfig:
         f.write_text("main_session_chat_id: 99999\n")
         s = _settings(yaml_file=str(f))
         assert s.main_session_chat_id == 99999
+
+    def test_heartbeat_yaml(self, tmp_path):
+        f = tmp_path / "config.yaml"
+        f.write_text("heartbeat:\n  interval: 1800\n  prompt: check workspace\n")
+        s = _settings(yaml_file=str(f))
+        assert s.heartbeat.interval == 1800
+        assert s.heartbeat.prompt == "check workspace"
+
+    def test_api_port_yaml(self, tmp_path):
+        f = tmp_path / "config.yaml"
+        f.write_text("api_port: 9999\n")
+        s = _settings(yaml_file=str(f))
+        assert s.api_port == 9999
