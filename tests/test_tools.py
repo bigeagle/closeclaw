@@ -21,6 +21,10 @@ from closeclaw.agent_core.tools.send_image import (
     Params as SendImageParams,
     MAX_PHOTO_SIZE,
 )
+from closeclaw.agent_core.tools.read_media import (
+    ReadMediaFile,
+    Params as ReadMediaParams,
+)
 
 
 @pytest.fixture
@@ -296,4 +300,41 @@ class TestSendImage:
     async def test_empty_path(self, runtime):
         tool = SendImage(runtime)
         result = await tool(SendImageParams(path=""))
+        assert result.is_error
+
+
+# ---------------------------------------------------------------------------
+# ReadMediaFile
+# ---------------------------------------------------------------------------
+
+
+class TestReadMediaFile:
+    async def test_read_valid_image(self, runtime, tmp_path):
+        f = tmp_path.resolve() / "image.png"
+        f.write_bytes(_MINIMAL_PNG)
+        tool = ReadMediaFile(runtime)
+        result = await tool(ReadMediaParams(path=str(f)))
+        assert not result.is_error
+        # Output should be a list of ContentPart with image tag wrapper
+        assert isinstance(result.output, list)
+        assert len(result.output) == 3  # TextPart, ImageURLPart, TextPart
+        assert "image/png" in result.message
+
+    async def test_read_nonexistent(self, runtime, tmp_path):
+        tool = ReadMediaFile(runtime)
+        missing = str(tmp_path.resolve() / "no_such.png")
+        result = await tool(ReadMediaParams(path=missing))
+        assert result.is_error
+
+    async def test_read_text_file_rejected(self, runtime, tmp_path):
+        f = tmp_path.resolve() / "readme.txt"
+        f.write_text("plain text content")
+        tool = ReadMediaFile(runtime)
+        result = await tool(ReadMediaParams(path=str(f)))
+        assert result.is_error
+        assert "text file" in result.message
+
+    async def test_empty_path(self, runtime):
+        tool = ReadMediaFile(runtime)
+        result = await tool(ReadMediaParams(path=""))
         assert result.is_error
