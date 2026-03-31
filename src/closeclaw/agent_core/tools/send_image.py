@@ -1,4 +1,4 @@
-"""SendPhoto tool — sends an image file to the user."""
+"""SendImage tool — sends an image file to the user."""
 
 from __future__ import annotations
 
@@ -28,12 +28,12 @@ class Params(BaseModel):
     )
 
 
-class SendPhoto(CallableTool2[Params]):
-    name: str = "SendPhoto"
+class SendImage(CallableTool2[Params]):
+    name: str = "SendImage"
     params: type[Params] = Params
 
     def __init__(self, runtime: Runtime) -> None:
-        description = load_desc(Path(__file__).parent / "descs" / "send_photo.md")
+        description = load_desc(Path(__file__).parent / "descs" / "send_image.md")
         super().__init__(description=description)
         self._work_dir = runtime.work_dir
         self._additional_dirs = runtime.additional_dirs

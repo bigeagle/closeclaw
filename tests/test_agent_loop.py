@@ -179,7 +179,7 @@ class TestImageOutput:
                 tc = ToolCall(
                     id="tc-photo",
                     function=ToolCall.FunctionBody(
-                        name="SendPhoto",
+                        name="SendImage",
                         arguments='{"path": "/tmp/test.png"}',
                     ),
                 )
@@ -214,7 +214,7 @@ class TestImageOutput:
                 tc = ToolCall(
                     id="tc-fail",
                     function=ToolCall.FunctionBody(
-                        name="SendPhoto",
+                        name="SendImage",
                         arguments='{"path": "/no/such/file.png"}',
                     ),
                 )

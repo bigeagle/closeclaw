@@ -273,7 +273,7 @@ class AgentSession:
                 )
 
                 # Emit ImageOutput for SendPhoto tool calls
-                if tc.function.name == "SendPhoto" and not tr.return_value.is_error:
+                if tc.function.name == "SendImage" and not tr.return_value.is_error:
                     try:
                         info = json.loads(output_text)
                         yield ImageOutput(

@@ -11,4 +11,4 @@ agent:
     - "closeclaw.agent_core.tools.grep:Grep"
     - "closeclaw.agent_core.tools.write_file:WriteFile"
     - "closeclaw.agent_core.tools.replace_file:StrReplaceFile"
-    - "closeclaw.agent_core.tools.send_photo:SendPhoto"
+    - "closeclaw.agent_core.tools.send_image:SendImage"

@@ -16,9 +16,9 @@ from closeclaw.agent_core.tools.replace_file import (
     Params as ReplaceParams,
     Edit,
 )
-from closeclaw.agent_core.tools.send_photo import (
-    SendPhoto,
-    Params as SendPhotoParams,
+from closeclaw.agent_core.tools.send_image import (
+    SendImage,
+    Params as SendImageParams,
     MAX_PHOTO_SIZE,
 )
 
@@ -246,12 +246,12 @@ _MINIMAL_PNG = (
 )
 
 
-class TestSendPhoto:
+class TestSendImage:
     async def test_send_valid_image(self, runtime, tmp_path):
         f = tmp_path.resolve() / "image.png"
         f.write_bytes(_MINIMAL_PNG)
-        tool = SendPhoto(runtime)
-        result = await tool(SendPhotoParams(path=str(f)))
+        tool = SendImage(runtime)
+        result = await tool(SendImageParams(path=str(f)))
         assert not result.is_error
         import json
 
@@ -262,8 +262,8 @@ class TestSendPhoto:
     async def test_send_with_caption(self, runtime, tmp_path):
         f = tmp_path.resolve() / "image.png"
         f.write_bytes(_MINIMAL_PNG)
-        tool = SendPhoto(runtime)
-        result = await tool(SendPhotoParams(path=str(f), caption="Hello!"))
+        tool = SendImage(runtime)
+        result = await tool(SendImageParams(path=str(f), caption="Hello!"))
         assert not result.is_error
         import json
 
@@ -271,16 +271,16 @@ class TestSendPhoto:
         assert data["caption"] == "Hello!"
 
     async def test_nonexistent_file(self, runtime, tmp_path):
-        tool = SendPhoto(runtime)
+        tool = SendImage(runtime)
         missing = str(tmp_path.resolve() / "no_such.png")
-        result = await tool(SendPhotoParams(path=missing))
+        result = await tool(SendImageParams(path=missing))
         assert result.is_error
 
     async def test_not_an_image(self, runtime, tmp_path):
         f = tmp_path.resolve() / "text.txt"
         f.write_text("this is plain text")
-        tool = SendPhoto(runtime)
-        result = await tool(SendPhotoParams(path=str(f)))
+        tool = SendImage(runtime)
+        result = await tool(SendImageParams(path=str(f)))
         assert result.is_error
         assert "not a supported image" in result.message
 
@@ -288,12 +288,12 @@ class TestSendPhoto:
         f = tmp_path.resolve() / "big.png"
         # Write PNG header + padding to exceed 10MB
         f.write_bytes(_MINIMAL_PNG + b"\x00" * (MAX_PHOTO_SIZE + 1))
-        tool = SendPhoto(runtime)
-        result = await tool(SendPhotoParams(path=str(f)))
+        tool = SendImage(runtime)
+        result = await tool(SendImageParams(path=str(f)))
         assert result.is_error
         assert "too large" in result.message
 
     async def test_empty_path(self, runtime):
-        tool = SendPhoto(runtime)
-        result = await tool(SendPhotoParams(path=""))
+        tool = SendImage(runtime)
+        result = await tool(SendImageParams(path=""))
         assert result.is_error
