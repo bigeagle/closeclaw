@@ -309,32 +309,40 @@ class TestSendImage:
 
 
 class TestReadMediaFile:
-    async def test_read_valid_image(self, runtime, tmp_path):
+    @pytest.fixture
+    def vision_runtime(self, tmp_path):
+        resolved = tmp_path.resolve()
+        return Runtime(work_dir=KaosPath(str(resolved)), enable_vision=True)
+
+    async def test_read_valid_image(self, vision_runtime, tmp_path):
         f = tmp_path.resolve() / "image.png"
         f.write_bytes(_MINIMAL_PNG)
-        tool = ReadMediaFile(runtime)
+        tool = ReadMediaFile(vision_runtime)
         result = await tool(ReadMediaParams(path=str(f)))
         assert not result.is_error
-        # Output should be a list of ContentPart with image tag wrapper
         assert isinstance(result.output, list)
-        assert len(result.output) == 3  # TextPart, ImageURLPart, TextPart
+        assert len(result.output) == 3
         assert "image/png" in result.message
 
-    async def test_read_nonexistent(self, runtime, tmp_path):
-        tool = ReadMediaFile(runtime)
+    async def test_read_nonexistent(self, vision_runtime, tmp_path):
+        tool = ReadMediaFile(vision_runtime)
         missing = str(tmp_path.resolve() / "no_such.png")
         result = await tool(ReadMediaParams(path=missing))
         assert result.is_error
 
-    async def test_read_text_file_rejected(self, runtime, tmp_path):
+    async def test_read_text_file_rejected(self, vision_runtime, tmp_path):
         f = tmp_path.resolve() / "readme.txt"
         f.write_text("plain text content")
-        tool = ReadMediaFile(runtime)
+        tool = ReadMediaFile(vision_runtime)
         result = await tool(ReadMediaParams(path=str(f)))
         assert result.is_error
         assert "text file" in result.message
 
-    async def test_empty_path(self, runtime):
-        tool = ReadMediaFile(runtime)
+    async def test_empty_path(self, vision_runtime):
+        tool = ReadMediaFile(vision_runtime)
         result = await tool(ReadMediaParams(path=""))
         assert result.is_error
+
+    async def test_skipped_without_vision(self, runtime):
+        with pytest.raises(RuntimeError, match="enable_vision"):
+            ReadMediaFile(runtime)

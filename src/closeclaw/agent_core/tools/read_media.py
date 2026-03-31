@@ -78,6 +78,8 @@ class ReadMediaFile(CallableTool2[Params]):
     params: type[Params] = Params
 
     def __init__(self, runtime: Runtime) -> None:
+        if not runtime.enable_vision:
+            raise RuntimeError("ReadMediaFile requires enable_vision=true")
         description = load_desc(
             Path(__file__).parent / "descs" / "read_media.md",
             {"MAX_MEDIA_MEGABYTES": MAX_MEDIA_MEGABYTES},

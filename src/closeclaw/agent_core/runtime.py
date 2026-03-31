@@ -15,6 +15,7 @@ class Runtime:
     work_dir: KaosPath
     additional_dirs: list[KaosPath] = field(default_factory=list)
     skills_dirs: list[KaosPath] = field(default_factory=list)
+    enable_vision: bool = False
 
     @staticmethod
     def from_cwd() -> Runtime:

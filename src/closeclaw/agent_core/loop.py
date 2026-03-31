@@ -135,6 +135,7 @@ class AgentSession:
         )
 
         runtime = Runtime.from_cwd()
+        runtime.enable_vision = settings.enable_vision
         self._toolset = load_tools(agent_config.agent.tools, runtime)
         logger.info(
             "Loaded tools: {tools}", tools=[t.name for t in self._toolset.tools]
