@@ -19,6 +19,7 @@ from telegram.ext import (
 
 from closeclaw.agent_core.loop import (
     AgentSession,
+    ImageOutput,
     TextDelta,
 )
 from closeclaw.config import Settings
@@ -95,6 +96,28 @@ def _format_user_message(update: Update) -> str:
 
     body = "\n".join(parts)
     return f'<message sender="{sender}" timestamp="{timestamp}">\n{body}\n</message>'
+
+
+async def _send_photo(bot, chat_id: int, event: ImageOutput) -> None:
+    """Send an image file as a Telegram photo message."""
+    try:
+        caption_text = None
+        parse_mode = None
+        if event.caption:
+            try:
+                caption_text = markdownify(event.caption)
+                parse_mode = ParseMode.MARKDOWN_V2
+            except Exception:
+                caption_text = event.caption
+        with open(event.path, "rb") as f:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=f,
+                caption=caption_text,
+                parse_mode=parse_mode,
+            )
+    except Exception as exc:
+        logger.warning("send_photo failed: {e}", e=exc)
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
@@ -189,6 +212,8 @@ async def _stream_reply_draft(
             if isinstance(event, TextDelta):
                 accumulated += event.text
                 text_changed.set()
+            elif isinstance(event, ImageOutput):
+                await _send_photo(bot, chat_id, event)
     finally:
         done = True
         text_changed.set()
@@ -255,6 +280,8 @@ async def _stream_reply_edit(
         if isinstance(event, TextDelta):
             accumulated += event.text
             await _maybe_edit()
+        elif isinstance(event, ImageOutput):
+            await _send_photo(context.bot, chat_id, event)
 
     # Final edit with complete text
     display = _truncate(accumulated) if accumulated else "(no response)"

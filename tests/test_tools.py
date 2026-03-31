@@ -16,6 +16,11 @@ from closeclaw.agent_core.tools.replace_file import (
     Params as ReplaceParams,
     Edit,
 )
+from closeclaw.agent_core.tools.send_photo import (
+    SendPhoto,
+    Params as SendPhotoParams,
+    MAX_PHOTO_SIZE,
+)
 
 
 @pytest.fixture
@@ -223,3 +228,72 @@ class TestStrReplaceFile:
         )
         assert not result.is_error
         assert f.read_text() == "FOO bar BAZ"
+
+
+# ---------------------------------------------------------------------------
+# SendPhoto
+# ---------------------------------------------------------------------------
+
+# Minimal valid PNG: magic header + minimal IHDR chunk
+_MINIMAL_PNG = (
+    b"\x89PNG\r\n\x1a\n"  # PNG signature
+    b"\x00\x00\x00\rIHDR"  # IHDR chunk
+    b"\x00\x00\x00\x01"  # width: 1
+    b"\x00\x00\x00\x01"  # height: 1
+    b"\x08\x02"  # bit depth: 8, color type: RGB
+    b"\x00\x00\x00"  # compression, filter, interlace
+    b"\x90wS\xde"  # CRC
+)
+
+
+class TestSendPhoto:
+    async def test_send_valid_image(self, runtime, tmp_path):
+        f = tmp_path.resolve() / "image.png"
+        f.write_bytes(_MINIMAL_PNG)
+        tool = SendPhoto(runtime)
+        result = await tool(SendPhotoParams(path=str(f)))
+        assert not result.is_error
+        import json
+
+        data = json.loads(result.output)
+        assert data["path"] == str(f)
+        assert data["caption"] == ""
+
+    async def test_send_with_caption(self, runtime, tmp_path):
+        f = tmp_path.resolve() / "image.png"
+        f.write_bytes(_MINIMAL_PNG)
+        tool = SendPhoto(runtime)
+        result = await tool(SendPhotoParams(path=str(f), caption="Hello!"))
+        assert not result.is_error
+        import json
+
+        data = json.loads(result.output)
+        assert data["caption"] == "Hello!"
+
+    async def test_nonexistent_file(self, runtime, tmp_path):
+        tool = SendPhoto(runtime)
+        missing = str(tmp_path.resolve() / "no_such.png")
+        result = await tool(SendPhotoParams(path=missing))
+        assert result.is_error
+
+    async def test_not_an_image(self, runtime, tmp_path):
+        f = tmp_path.resolve() / "text.txt"
+        f.write_text("this is plain text")
+        tool = SendPhoto(runtime)
+        result = await tool(SendPhotoParams(path=str(f)))
+        assert result.is_error
+        assert "not a supported image" in result.message
+
+    async def test_file_too_large(self, runtime, tmp_path):
+        f = tmp_path.resolve() / "big.png"
+        # Write PNG header + padding to exceed 10MB
+        f.write_bytes(_MINIMAL_PNG + b"\x00" * (MAX_PHOTO_SIZE + 1))
+        tool = SendPhoto(runtime)
+        result = await tool(SendPhotoParams(path=str(f)))
+        assert result.is_error
+        assert "too large" in result.message
+
+    async def test_empty_path(self, runtime):
+        tool = SendPhoto(runtime)
+        result = await tool(SendPhotoParams(path=""))
+        assert result.is_error

@@ -71,6 +71,14 @@ class ToolCallDone(AgentEvent):
 
 
 @dataclass
+class ImageOutput(AgentEvent):
+    """Agent requested sending an image to the user."""
+
+    path: str
+    caption: str
+
+
+@dataclass
 class TurnDone(AgentEvent):
     """The agent finished a full turn (no more tool calls)."""
 
@@ -263,6 +271,17 @@ class AgentSession:
                     output=output_text,
                     is_error=tr.return_value.is_error,
                 )
+
+                # Emit ImageOutput for SendPhoto tool calls
+                if tc.function.name == "SendPhoto" and not tr.return_value.is_error:
+                    try:
+                        info = json.loads(output_text)
+                        yield ImageOutput(
+                            path=info["path"],
+                            caption=info.get("caption", ""),
+                        )
+                    except json.JSONDecodeError, KeyError:
+                        pass
 
                 self.history.append(
                     Message(

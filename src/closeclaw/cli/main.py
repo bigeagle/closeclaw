@@ -63,6 +63,7 @@ def chat(ctx: click.Context) -> None:
 async def _chat_loop(config_file: str | None = None) -> None:
     from closeclaw.agent_core.loop import (
         AgentSession,
+        ImageOutput,
         TextDelta,
         ToolCallDone,
         ToolCallStart,
@@ -118,6 +119,13 @@ async def _chat_loop(config_file: str | None = None) -> None:
                 console.print(f"  [dim]{icon} {preview}[/dim]")
                 console.print()
                 streamed_text = ""  # reset for next step
+            elif isinstance(event, ImageOutput):
+                if in_streaming:
+                    print()
+                    in_streaming = False
+                console.print(f"  [dim]🖼️  Image: {event.path}[/dim]")
+                if event.caption:
+                    console.print(f"  [dim]   {event.caption}[/dim]")
             elif isinstance(event, TurnDone):
                 if in_streaming:
                     print()  # final newline

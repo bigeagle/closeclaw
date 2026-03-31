@@ -8,10 +8,11 @@ from unittest.mock import patch
 
 import kosong
 from kosong.message import Message, TextPart, ToolCall
-from kosong.tooling import ToolOk, ToolResult
+from kosong.tooling import ToolError, ToolOk, ToolResult
 
 from closeclaw.agent_core.loop import (
     AgentSession,
+    ImageOutput,
     TextDelta,
     ToolCallDone,
     ToolCallStart,
@@ -34,17 +35,21 @@ def _make_step_result(
     content: str = "",
     tool_calls: list[ToolCall] | None = None,
     tool_outputs: dict[str, str] | None = None,
+    tool_errors: dict[str, bool] | None = None,
 ) -> kosong.StepResult:
     """Build a StepResult, optionally with pre-resolved tool futures."""
     tc_list = tool_calls or []
     futures: dict[str, asyncio.Future[ToolResult]] = {}
+    errors = tool_errors or {}
 
     for tc in tc_list:
         fut: asyncio.Future[ToolResult] = asyncio.get_event_loop().create_future()
         output = (tool_outputs or {}).get(tc.id, "")
-        fut.set_result(
-            ToolResult(tool_call_id=tc.id, return_value=ToolOk(output=output))
-        )
+        if tc.id in errors:
+            rv = ToolError(message=output, brief="error")
+        else:
+            rv = ToolOk(output=output)
+        fut.set_result(ToolResult(tool_call_id=tc.id, return_value=rv))
         futures[tc.id] = fut
 
     return kosong.StepResult(
@@ -158,3 +163,71 @@ class TestToolCallLoop:
 
         roles = [m.role for m in session.history]
         assert roles == ["user", "assistant", "tool", "assistant"]
+
+
+class TestImageOutput:
+    async def test_send_photo_yields_image_output(self):
+        """SendPhoto tool call yields an ImageOutput event."""
+        call_count = 0
+
+        async def mock_step(*_args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            omp = kwargs.get("on_message_part")
+
+            if call_count == 1:
+                tc = ToolCall(
+                    id="tc-photo",
+                    function=ToolCall.FunctionBody(
+                        name="SendPhoto",
+                        arguments='{"path": "/tmp/test.png"}',
+                    ),
+                )
+                return _make_step_result(
+                    tool_calls=[tc],
+                    tool_outputs={
+                        "tc-photo": '{"path": "/tmp/test.png", "caption": "a chart"}'
+                    },
+                )
+            else:
+                if omp:
+                    omp(TextPart(text="Here is the image."))
+                return _make_step_result(content="Here is the image.")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            events = [e async for e in session.chat("show chart")]
+
+        img_events = [e for e in events if isinstance(e, ImageOutput)]
+        assert len(img_events) == 1
+        assert img_events[0].path == "/tmp/test.png"
+        assert img_events[0].caption == "a chart"
+
+    async def test_no_image_output_on_error(self):
+        """Failed SendPhoto tool call does NOT yield ImageOutput."""
+        call_count = 0
+
+        async def mock_step(*_args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                tc = ToolCall(
+                    id="tc-fail",
+                    function=ToolCall.FunctionBody(
+                        name="SendPhoto",
+                        arguments='{"path": "/no/such/file.png"}',
+                    ),
+                )
+                return _make_step_result(
+                    tool_calls=[tc],
+                    tool_outputs={"tc-fail": "File not found"},
+                    tool_errors={"tc-fail": True},
+                )
+            return _make_step_result(content="Sorry, failed.")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            events = [e async for e in session.chat("send pic")]
+
+        img_events = [e for e in events if isinstance(e, ImageOutput)]
+        assert len(img_events) == 0
