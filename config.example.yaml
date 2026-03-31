@@ -11,6 +11,9 @@
 # telegram_bot_token: "123456:ABC-DEF"
 # telegram_allowed_users: "111,222,333"
 
+# --- Vision ---
+# enable_vision: false
+
 # --- Agent ---
 agent:
   # Path to agent.yaml (empty = built-in default)

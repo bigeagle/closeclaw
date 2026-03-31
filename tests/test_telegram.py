@@ -51,3 +51,28 @@ class TestTruncate:
         limit = 100
         text = "x" * limit
         assert _truncate(text, limit=limit) == text
+
+
+class TestDownloadPhotoBase64:
+    async def test_returns_data_url(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from closeclaw.channels.telegram import _download_photo_base64
+
+        fake_file = AsyncMock()
+        fake_file.download_as_bytearray = AsyncMock(return_value=bytearray(b"\x89PNG"))
+
+        fake_bot = AsyncMock()
+        fake_bot.get_file = AsyncMock(return_value=fake_file)
+
+        photo = MagicMock()
+        photo.file_id = "abc123"
+
+        result = await _download_photo_base64(fake_bot, photo)
+        assert result.startswith("data:image/jpeg;base64,")
+        # Verify the base64 payload decodes back
+        import base64
+
+        b64_part = result.split(",", 1)[1]
+        assert base64.b64decode(b64_part) == b"\x89PNG"
+        fake_bot.get_file.assert_called_once_with("abc123")

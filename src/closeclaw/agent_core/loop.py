@@ -16,7 +16,7 @@ from loguru import logger
 import kosong
 from kosong.chat_provider import StreamedMessagePart
 from kosong.chat_provider.kimi import Kimi
-from kosong.message import Message, TextPart, ThinkPart
+from kosong.message import ContentPart, Message, TextPart, ThinkPart
 from closeclaw.agent_core.agent_config import (
     AgentConfig,
     load_agent_config,
@@ -192,8 +192,14 @@ class AgentSession:
 
     # ── public API ────────────────────────────────────────────────────────
 
-    async def chat(self, user_message: str) -> AsyncGenerator[AgentEvent, None]:
+    async def chat(
+        self, user_message: str | list[ContentPart]
+    ) -> AsyncGenerator[AgentEvent, None]:
         """Send a user message and yield events as the agent responds.
+
+        *user_message* can be a plain string **or** a list of
+        ``ContentPart`` (e.g. ``[TextPart(...), ImageURLPart(...)]``) for
+        multi-modal inputs.
 
         Yields ``TextDelta`` / ``ThinkDelta`` in real-time as the model
         streams, then tool events, and finally ``TurnDone``.

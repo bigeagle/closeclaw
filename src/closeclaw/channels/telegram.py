@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import html
 
 from loguru import logger
@@ -16,6 +17,8 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+from kosong.message import ContentPart, ImageURLPart, TextPart
 
 from closeclaw.agent_core.loop import (
     AgentSession,
@@ -59,14 +62,32 @@ def _format_sender(user) -> str:
     return name
 
 
-def _format_user_message(update: Update) -> str:
-    """Wrap user text with sender metadata in XML."""
+def _encode_image(photo, data_url: str) -> list[ContentPart]:
+    """Encode a photo into ``<image>`` content parts."""
+    attrs = f'width="{photo.width}" height="{photo.height}"'
+    if photo.file_size:
+        attrs += f' file_size="{photo.file_size}"'
+    return [
+        TextPart(text=f"<image {attrs}>"),
+        ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url)),
+        TextPart(text="</image>"),
+    ]
+
+
+def _format_user_message(
+    update: Update, *, photo=None, data_url: str = ""
+) -> list[ContentPart]:
+    """Wrap user text/image with sender metadata in XML, returning content parts."""
     assert update.message and update.effective_user
     sender = _format_sender(update.effective_user)
     timestamp = update.message.date.astimezone().isoformat()
-    text = update.message.text or ""
+    text = update.message.text or update.message.caption or ""
 
-    parts: list[str] = []
+    content: list[ContentPart] = []
+    content.append(
+        TextPart(text=f'<message sender="{sender}" timestamp="{timestamp}">\n')
+    )
+
     reply = update.message.reply_to_message
     if reply:
         reply_sender = _format_sender(reply.from_user)
@@ -74,15 +95,22 @@ def _format_user_message(update: Update) -> str:
         reply_text = reply.text or reply.caption or "(non-text message)"
         if len(reply_text) > 500:
             reply_text = reply_text[:500] + "…"
-        parts.append(
-            f'<reply_to sender="{reply_sender}" timestamp="{reply_ts}">\n'
-            f"{reply_text}\n"
-            f"</reply_to>"
+        content.append(
+            TextPart(
+                text=f'<reply_to sender="{reply_sender}" timestamp="{reply_ts}">\n'
+                f"{reply_text}\n"
+                f"</reply_to>\n"
+            )
         )
-    parts.append(text)
 
-    body = "\n".join(parts)
-    return f'<message sender="{sender}" timestamp="{timestamp}">\n{body}\n</message>'
+    if photo and data_url:
+        content.extend(_encode_image(photo, data_url))
+
+    if text:
+        content.append(TextPart(text=f"{text}\n"))
+
+    content.append(TextPart(text="</message>"))
+    return content
 
 
 async def _send_photo(bot, chat_id: int, event: ImageOutput) -> None:
@@ -129,6 +157,13 @@ async def _cmd_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await update.effective_chat.send_message("🔄 Session reset.")
 
 
+async def _download_photo_base64(bot, photo) -> str:
+    """Download a Telegram PhotoSize and return a base64 data-URL."""
+    buf = await (await bot.get_file(photo.file_id)).download_as_bytearray()
+    b64 = base64.b64encode(bytes(buf)).decode()
+    return f"data:image/jpeg;base64,{b64}"
+
+
 async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     assert update.message and update.effective_user and update.effective_chat
     settings: Settings = context.bot_data["settings"]
@@ -138,13 +173,24 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         logger.info("Ignored message from unauthorised user {uid}", uid=user_id)
         return
 
-    text = update.message.text or ""
-    if not text.strip():
+    has_photo = bool(update.message.photo)
+    text = update.message.text or update.message.caption or ""
+
+    if not text.strip() and not has_photo:
         return
 
     logger.info("[TG] user={uid} msg={text}", uid=user_id, text=text[:80])
 
-    user_message = _format_user_message(update)
+    user_message: list[ContentPart]
+    if has_photo and settings.enable_vision:
+        photo = update.message.photo[-1]
+        data_url = await _download_photo_base64(context.bot, photo)
+        user_message = _format_user_message(update, photo=photo, data_url=data_url)
+    else:
+        if not text.strip():
+            return
+        user_message = _format_user_message(update)
+
     session = _get_session(update.effective_chat.id, settings)
     await _stream_reply(update, context, session, user_message)
 
@@ -156,7 +202,7 @@ async def _stream_reply(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     session: AgentSession,
-    text: str,
+    user_message: str | list[ContentPart],
 ) -> None:
     """Stream reply by sending a message then editing it as tokens arrive."""
     assert update.message and update.effective_chat
@@ -200,7 +246,7 @@ async def _stream_reply(
         except Exception as exc:
             logger.debug("edit_message_text failed: {e}", e=exc)
 
-    async for event in session.chat(text):
+    async for event in session.chat(user_message):
         if isinstance(event, TextDelta):
             accumulated += event.text
             await _maybe_edit()
@@ -270,7 +316,9 @@ def run_telegram_debug(settings: Settings) -> None:
 
     async def _echo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         assert update.message
-        await update.message.reply_text(_format_user_message(update))
+        parts = _format_user_message(update)
+        text = "".join(p.text for p in parts if isinstance(p, TextPart))
+        await update.message.reply_text(text)
 
     async def _cmd_md(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         """Send a Markdown test message to check rendering."""
@@ -326,7 +374,11 @@ def run_telegram_bot(settings: Settings) -> None:
 
     app.add_handler(CommandHandler("start", _cmd_start))
     app.add_handler(CommandHandler("reset", _cmd_reset))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_message))
+    app.add_handler(
+        MessageHandler(
+            (filters.TEXT | filters.PHOTO) & ~filters.COMMAND, _handle_message
+        )
+    )
 
     async def _post_init(application: Application) -> None:
         await application.bot.set_my_commands(

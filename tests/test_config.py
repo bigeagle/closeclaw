@@ -39,6 +39,10 @@ class TestDefaults:
         assert s.agent.agent_file == ""
         assert s.agent.workspace == ""
 
+    def test_vision_default(self):
+        s = _settings()
+        assert s.enable_vision is False
+
 
 # ── Env overrides ─────────────────────────────────────────────────────────────
 
@@ -55,6 +59,10 @@ class TestEnvOverride:
     def test_telegram_bot_token(self):
         s = _settings(TELEGRAM_BOT_TOKEN="123:ABC")
         assert s.telegram_bot_token == "123:ABC"
+
+    def test_enable_vision(self):
+        s = _settings(ENABLE_VISION="true")
+        assert s.enable_vision is True
 
 
 # ── Allowed user ids parsing ──────────────────────────────────────────────────

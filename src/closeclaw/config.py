@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # issues with empty env values.
     telegram_allowed_users: str = ""
 
+    # --- Vision ---
+    enable_vision: bool = False
+
     # --- Agent ---
     agent: AgentSettings = AgentSettings()
 

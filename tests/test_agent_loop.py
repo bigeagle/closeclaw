@@ -231,3 +231,33 @@ class TestImageOutput:
 
         img_events = [e for e in events if isinstance(e, ImageOutput)]
         assert len(img_events) == 0
+
+
+class TestMultimodalInput:
+    async def test_chat_with_content_parts(self):
+        """chat() accepts list[ContentPart] for multi-modal input."""
+        from kosong.message import ImageURLPart
+
+        async def mock_step(*_args, **kwargs):
+            omp = kwargs.get("on_message_part")
+            if omp:
+                omp(TextPart(text="I see an image."))
+            return _make_step_result(content="I see an image.")
+
+        with patch("closeclaw.agent_core.loop.kosong.step", side_effect=mock_step):
+            session = AgentSession(_make_settings())
+            content = [
+                TextPart(text="describe this"),
+                ImageURLPart(
+                    image_url=ImageURLPart.ImageURL(url="data:image/png;base64,iVBOR")
+                ),
+            ]
+            events = [e async for e in session.chat(content)]
+
+        dones = [e for e in events if isinstance(e, TurnDone)]
+        assert len(dones) == 1
+        assert dones[0].text == "I see an image."
+
+        # History should contain the multi-modal user message
+        assert session.history[0].role == "user"
+        assert isinstance(session.history[0].content, list)
