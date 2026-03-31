@@ -161,10 +161,19 @@ async def _stream_reply(
     assert update.message and update.effective_chat
     chat_id = update.effective_chat.id
 
-    await update.effective_chat.send_action(ChatAction.TYPING)
-
     accumulated = ""
     message_id: int | None = None
+
+    async def _keep_typing() -> None:
+        """Re-send typing action every 5s until cancelled."""
+        try:
+            while True:
+                await update.effective_chat.send_action(ChatAction.TYPING)  # type: ignore[union-attr]
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+
+    typing_task = asyncio.create_task(_keep_typing())
     last_edit = 0.0
     throttle = 1.5  # seconds between edits (Telegram rate-limit safe)
 
@@ -224,6 +233,8 @@ async def _stream_reply(
                 )
         except Exception:
             pass
+    finally:
+        typing_task.cancel()
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
