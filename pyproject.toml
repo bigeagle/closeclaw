@@ -19,6 +19,7 @@ dependencies = [
     "kimi-cli>=1.27",
     "pykaos>=0.7.0",
     "python-frontmatter>=1.1.0",
+    "telegramify-markdown>=1.1.1",
 ]
 
 [project.scripts]

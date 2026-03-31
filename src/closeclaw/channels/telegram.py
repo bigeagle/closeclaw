@@ -6,6 +6,7 @@ import asyncio
 import html
 
 from loguru import logger
+from telegramify_markdown import markdownify
 from telegram import BotCommand, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
@@ -201,7 +202,9 @@ async def _stream_reply_draft(
 
     reply = _truncate(accumulated) if accumulated else "(no response)"
     try:
-        await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(
+            markdownify(reply), parse_mode=ParseMode.MARKDOWN_V2
+        )
     except Exception:
         await update.message.reply_text(reply)
 
@@ -256,16 +259,30 @@ async def _stream_reply_edit(
     # Final edit with complete text
     display = _truncate(accumulated) if accumulated else "(no response)"
     try:
+        mdv2 = markdownify(display)
         if message_id is None:
-            await update.message.reply_text(display)  # type: ignore[union-attr]
+            await update.message.reply_text(  # type: ignore[union-attr]
+                mdv2, parse_mode=ParseMode.MARKDOWN_V2
+            )
         else:
             await context.bot.edit_message_text(
-                text=display,
+                text=mdv2,
                 chat_id=chat_id,
                 message_id=message_id,
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
     except Exception:
-        pass
+        try:
+            if message_id is None:
+                await update.message.reply_text(display)  # type: ignore[union-attr]
+            else:
+                await context.bot.edit_message_text(
+                    text=display,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                )
+        except Exception:
+            pass
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -323,10 +340,32 @@ def run_telegram_debug(settings: Settings) -> None:
         assert update.message
         await update.message.reply_text(_format_user_message(update))
 
+    async def _cmd_md(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Send a Markdown test message to check rendering."""
+        assert update.message
+        sample = (
+            "**Bold text** and _italic text_\n"
+            "`inline code` and \n\n"
+            "```python\nprint('hello')\n```\n"
+            "[link](https://example.com)\n"
+            "- bullet one\n- bullet two\n"
+            "> blockquote line\n"
+            "1. numbered\n2. list\n"
+            "---\n"
+            "**nested _bold italic_** end"
+        )
+        # Try telegramify-markdown
+        try:
+            mdv2 = markdownify(f"📝 telegramify-markdown:\n\n{sample}")
+            await update.message.reply_text(mdv2, parse_mode=ParseMode.MARKDOWN_V2)
+        except Exception as exc:
+            await update.message.reply_text(f"❌ telegramify-markdown failed: {exc}")
+
     app.add_handler(CommandHandler("start", _cmd_start))
     app.add_handler(CommandHandler("ping", _cmd_ping))
     app.add_handler(CommandHandler("info", _cmd_info))
     app.add_handler(CommandHandler("draft", _cmd_draft))
+    app.add_handler(CommandHandler("md", _cmd_md))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _echo))
 
     async def _post_init(application: Application) -> None:
@@ -336,6 +375,7 @@ def run_telegram_debug(settings: Settings) -> None:
                 BotCommand("ping", "Connectivity check"),
                 BotCommand("info", "Show user / chat info"),
                 BotCommand("draft", "Test sendMessageDraft streaming"),
+                BotCommand("md", "Test Markdown rendering"),
             ]
         )
 
