@@ -14,6 +14,10 @@
 # --- Vision ---
 # enable_vision: false
 
+# --- Main session ---
+# Pre-warm an agent session for this Telegram chat on gateway startup.
+# main_session_chat_id: 12345
+
 # --- Agent ---
 agent:
   # Path to agent.yaml (empty = built-in default)

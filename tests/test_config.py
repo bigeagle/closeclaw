@@ -43,6 +43,10 @@ class TestDefaults:
         s = _settings()
         assert s.enable_vision is False
 
+    def test_main_session_chat_id_default(self):
+        s = _settings()
+        assert s.main_session_chat_id == 0
+
 
 # ── Env overrides ─────────────────────────────────────────────────────────────
 
@@ -63,6 +67,10 @@ class TestEnvOverride:
     def test_enable_vision(self):
         s = _settings(ENABLE_VISION="true")
         assert s.enable_vision is True
+
+    def test_main_session_chat_id(self):
+        s = _settings(MAIN_SESSION_CHAT_ID="12345")
+        assert s.main_session_chat_id == 12345
 
 
 # ── Allowed user ids parsing ──────────────────────────────────────────────────
@@ -120,3 +128,9 @@ class TestYamlConfig:
         s = _settings(yaml_file=str(f))
         assert s.agent.workspace == "/work"
         assert s.agent.agent_file == ""  # default preserved
+
+    def test_main_session_chat_id_yaml(self, tmp_path):
+        f = tmp_path / "config.yaml"
+        f.write_text("main_session_chat_id: 99999\n")
+        s = _settings(yaml_file=str(f))
+        assert s.main_session_chat_id == 99999

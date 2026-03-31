@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # --- Vision ---
     enable_vision: bool = False
 
+    # --- Main session ---
+    main_session_chat_id: int = 0
+
     # --- Agent ---
     agent: AgentSettings = AgentSettings()
 

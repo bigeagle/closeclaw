@@ -387,6 +387,12 @@ def run_telegram_bot(settings: Settings) -> None:
                 BotCommand("reset", "Reset conversation history"),
             ]
         )
+        if settings.main_session_chat_id:
+            logger.info(
+                "Pre-warming main session for chat {cid}",
+                cid=settings.main_session_chat_id,
+            )
+            _get_session(settings.main_session_chat_id, settings)
 
     app.post_init = _post_init
     app.run_polling(allowed_updates=Update.ALL_TYPES)

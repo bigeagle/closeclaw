@@ -76,3 +76,30 @@ class TestDownloadPhotoBase64:
         b64_part = result.split(",", 1)[1]
         assert base64.b64decode(b64_part) == b"\x89PNG"
         fake_bot.get_file.assert_called_once_with("abc123")
+
+
+class TestGetSession:
+    def test_creates_and_caches(self):
+        """_get_session creates an AgentSession and caches it in _sessions."""
+        from unittest.mock import MagicMock, patch as _patch
+
+        import closeclaw.channels.telegram as tg_mod
+        from closeclaw.channels.telegram import _get_session
+
+        s = _settings(KIMI_API_KEY="fake-key")
+        fake_session = MagicMock()
+
+        old_sessions = tg_mod._sessions.copy()
+        try:
+            tg_mod._sessions.clear()
+            with _patch.object(tg_mod, "AgentSession", return_value=fake_session):
+                result = _get_session(12345, s)
+                assert result is fake_session
+                assert tg_mod._sessions[12345] is fake_session
+
+                # Second call returns cached session, no new creation
+                result2 = _get_session(12345, s)
+                assert result2 is fake_session
+        finally:
+            tg_mod._sessions.clear()
+            tg_mod._sessions.update(old_sessions)
