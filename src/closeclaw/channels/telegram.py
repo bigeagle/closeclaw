@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 
 from loguru import logger
 from telegram import BotCommand, Update
@@ -59,6 +60,42 @@ def _truncate(text: str, limit: int = TG_MSG_LIMIT - 96) -> str:
     return text
 
 
+def _format_sender(user) -> str:
+    """Format a Telegram User into an escaped display name."""
+    if user is None:
+        return "unknown"
+    name = html.escape(user.full_name)
+    if user.username:
+        name += f" (@{html.escape(user.username)})"
+    return name
+
+
+def _format_user_message(update: Update) -> str:
+    """Wrap user text with sender metadata in XML."""
+    assert update.message and update.effective_user
+    sender = _format_sender(update.effective_user)
+    timestamp = update.message.date.astimezone().isoformat()
+    text = update.message.text or ""
+
+    parts: list[str] = []
+    reply = update.message.reply_to_message
+    if reply:
+        reply_sender = _format_sender(reply.from_user)
+        reply_ts = reply.date.astimezone().isoformat()
+        reply_text = reply.text or reply.caption or "(non-text message)"
+        if len(reply_text) > 500:
+            reply_text = reply_text[:500] + "…"
+        parts.append(
+            f'<reply_to sender="{reply_sender}" timestamp="{reply_ts}">\n'
+            f"{reply_text}\n"
+            f"</reply_to>"
+        )
+    parts.append(text)
+
+    body = "\n".join(parts)
+    return f'<message sender="{sender}" timestamp="{timestamp}">\n{body}\n</message>'
+
+
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 
@@ -95,13 +132,14 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     logger.info("[TG] user={uid} msg={text}", uid=user_id, text=text[:80])
 
+    user_message = _format_user_message(update)
     session = _get_session(update.effective_chat.id, settings)
     is_private = update.effective_chat.type == "private"
 
     if is_private:
-        await _stream_reply_draft(update, context, session, text)
+        await _stream_reply_draft(update, context, session, user_message)
     else:
-        await _stream_reply_edit(update, context, session, text)
+        await _stream_reply_edit(update, context, session, user_message)
 
 
 # ── Private chat: sendMessageDraft streaming ─────────────────────────────────
@@ -283,7 +321,7 @@ def run_telegram_debug(settings: Settings) -> None:
 
     async def _echo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         assert update.message
-        await update.message.reply_text(f"echo: {update.message.text}")
+        await update.message.reply_text(_format_user_message(update))
 
     app.add_handler(CommandHandler("start", _cmd_start))
     app.add_handler(CommandHandler("ping", _cmd_ping))
