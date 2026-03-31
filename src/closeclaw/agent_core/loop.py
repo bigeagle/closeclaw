@@ -96,6 +96,7 @@ class AgentSession:
         settings: Settings,
         *,
         chat_id: int | None = None,
+        resume: bool = True,
         agent_config: AgentConfig | None = None,
         config_dir: Path | None = None,
     ) -> None:
@@ -146,7 +147,7 @@ class AgentSession:
             self._session_dir = Path(session_dir) / str(chat_id)
             self._session_dir.mkdir(parents=True, exist_ok=True)
 
-        if self._session_dir and chat_id is not None:
+        if self._session_dir and chat_id is not None and resume:
             loaded = self._find_latest_session()
             if loaded:
                 self.session_id = loaded["session_id"]

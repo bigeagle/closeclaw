@@ -124,7 +124,8 @@ async def _cmd_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     settings: Settings = context.bot_data["settings"]
     if not _is_allowed(user_id, settings):
         return
-    _sessions.pop(update.effective_chat.id, None)
+    chat_id = update.effective_chat.id
+    _sessions[chat_id] = AgentSession(settings, chat_id=chat_id, resume=False)
     await update.effective_chat.send_message("🔄 Session reset.")
 
 

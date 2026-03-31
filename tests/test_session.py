@@ -23,8 +23,10 @@ def _make_settings(session_dir: str = "") -> Settings:
         )
 
 
-def _session(tmp_path, chat_id=42):
-    return AgentSession(_make_settings(session_dir=str(tmp_path)), chat_id=chat_id)
+def _session(tmp_path, chat_id=42, resume=True):
+    return AgentSession(
+        _make_settings(session_dir=str(tmp_path)), chat_id=chat_id, resume=resume
+    )
 
 
 class TestNewSession:
@@ -145,3 +147,14 @@ class TestResume:
         assert len(files) == 1  # same file, not a new one
         data = json.loads(files[0].read_text())
         assert len(data["history"]) == 2  # 1 resumed from s1 + 1 new
+
+    def test_resume_false_starts_fresh(self, tmp_path):
+        """resume=False skips loading history (simulates /reset)."""
+        s1 = _session(tmp_path)
+        s1.history.append(Message(role="user", content="hello"))
+        s1.history.append(Message(role="assistant", content="hi"))
+        s1._save()
+
+        s2 = _session(tmp_path, resume=False)
+        assert s2.session_id != s1.session_id
+        assert s2.history == []
