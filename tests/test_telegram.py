@@ -6,10 +6,8 @@ import os
 from unittest.mock import patch
 
 from closeclaw.channels.telegram import (
-    _allocate_draft_id,
     _is_allowed,
     _truncate,
-    _DRAFT_ID_MAX,
 )
 from closeclaw.config import Settings
 
@@ -32,27 +30,6 @@ class TestIsAllowed:
     def test_user_not_in_list(self):
         s = _settings(TELEGRAM_ALLOWED_USERS="111,222")
         assert _is_allowed(333, s) is False
-
-
-class TestAllocateDraftId:
-    def test_increments(self):
-        id1 = _allocate_draft_id()
-        id2 = _allocate_draft_id()
-        assert id2 == id1 + 1
-
-    def test_positive(self):
-        assert _allocate_draft_id() > 0
-
-    def test_wraps_at_max(self):
-        import closeclaw.channels.telegram as mod
-
-        original = mod._next_draft_id
-        try:
-            mod._next_draft_id = _DRAFT_ID_MAX
-            new_id = _allocate_draft_id()
-            assert new_id == 1
-        finally:
-            mod._next_draft_id = original
 
 
 class TestTruncate:

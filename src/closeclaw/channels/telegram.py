@@ -27,20 +27,7 @@ from closeclaw.config import Settings
 # Per-chat agent sessions (keyed by Telegram chat ID).
 _sessions: dict[int, AgentSession] = {}
 
-# Module-level draft_id counter (monotonically increasing, wraps at INT32 max).
-_DRAFT_ID_MAX = 2_147_483_647
-_next_draft_id: int = 0
-
-# Minimum interval (seconds) between sendMessageDraft calls isn't needed—
-# we use a signal-driven loop so network RTT naturally throttles.
-
 TG_MSG_LIMIT = 4096
-
-
-def _allocate_draft_id() -> int:
-    global _next_draft_id
-    _next_draft_id = 1 if _next_draft_id >= _DRAFT_ID_MAX else _next_draft_id + 1
-    return _next_draft_id
 
 
 def _get_session(chat_id: int, settings: Settings) -> AgentSession:
@@ -158,92 +145,19 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     user_message = _format_user_message(update)
     session = _get_session(update.effective_chat.id, settings)
-    is_private = update.effective_chat.type == "private"
-
-    if is_private:
-        await _stream_reply_draft(update, context, session, user_message)
-    else:
-        await _stream_reply_edit(update, context, session, user_message)
+    await _stream_reply(update, context, session, user_message)
 
 
-# ── Private chat: sendMessageDraft streaming ─────────────────────────────────
+# ── Streaming reply via edit-message ──────────────────────────────────────────
 
 
-async def _stream_reply_draft(
+async def _stream_reply(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     session: AgentSession,
     text: str,
 ) -> None:
-    """Stream reply via sendMessageDraft (private chats only)."""
-    assert update.message and update.effective_chat
-    chat_id = update.effective_chat.id
-    bot = context.bot
-
-    draft_id = _allocate_draft_id()
-    accumulated = ""
-    last_sent = ""
-    done = False
-    text_changed = asyncio.Event()
-
-    async def _sender_loop() -> None:
-        """Signal-driven loop: wake on new tokens, RTT naturally throttles."""
-        nonlocal last_sent
-        while not done:
-            await text_changed.wait()
-            text_changed.clear()
-            current = accumulated
-            if current and current != last_sent:
-                draft_text = _truncate(current)
-                try:
-                    await bot.send_message_draft(
-                        chat_id=chat_id,
-                        draft_id=draft_id,
-                        text=draft_text,
-                    )
-                    last_sent = current
-                except Exception as exc:
-                    logger.debug("sendMessageDraft failed: {e}", e=exc)
-
-    sender_task = asyncio.create_task(_sender_loop())
-
-    try:
-        async for event in session.chat(text):
-            if isinstance(event, TextDelta):
-                accumulated += event.text
-                text_changed.set()
-            elif isinstance(event, ImageOutput):
-                await _send_photo(bot, chat_id, event)
-    finally:
-        done = True
-        text_changed.set()
-        await sender_task
-
-    # Clear the draft bubble, then send a real message.
-    try:
-        await bot.send_message_draft(chat_id=chat_id, draft_id=draft_id, text="⏳")
-    except Exception:
-        pass
-
-    reply = _truncate(accumulated) if accumulated else "(no response)"
-    try:
-        await update.message.reply_text(
-            markdownify(reply), parse_mode=ParseMode.MARKDOWN_V2
-        )
-    except Exception:
-        await update.message.reply_text(reply)
-
-
-# ── Group chat: sendMessage + editMessageText fallback ───────────────────────
-
-
-async def _stream_reply_edit(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    session: AgentSession,
-    text: str,
-) -> None:
-    """Stream reply via edit-message fallback (group chats)."""
+    """Stream reply by sending a message then editing it as tokens arrive."""
     assert update.message and update.effective_chat
     chat_id = update.effective_chat.id
 
@@ -342,27 +256,6 @@ def run_telegram_debug(settings: Settings) -> None:
         ]
         await update.message.reply_text("\n".join(lines))
 
-    async def _cmd_draft(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        """Test sendMessageDraft streaming."""
-        assert update.message and update.effective_chat
-        chat_id = update.effective_chat.id
-        draft_id = _allocate_draft_id()
-        text = ""
-        for word in "Hello this is a streaming draft test ✅".split():
-            text += (" " if text else "") + word
-            try:
-                await ctx.bot.send_message_draft(
-                    chat_id=chat_id,
-                    draft_id=draft_id,
-                    text=text,
-                )
-            except Exception as exc:
-                logger.warning("draft test failed: {e}", e=exc)
-                await update.message.reply_text(f"❌ sendMessageDraft failed: {exc}")
-                return
-            await asyncio.sleep(0.4)
-        await update.message.reply_text(text)
-
     async def _echo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         assert update.message
         await update.message.reply_text(_format_user_message(update))
@@ -391,7 +284,6 @@ def run_telegram_debug(settings: Settings) -> None:
     app.add_handler(CommandHandler("start", _cmd_start))
     app.add_handler(CommandHandler("ping", _cmd_ping))
     app.add_handler(CommandHandler("info", _cmd_info))
-    app.add_handler(CommandHandler("draft", _cmd_draft))
     app.add_handler(CommandHandler("md", _cmd_md))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _echo))
 
@@ -401,7 +293,6 @@ def run_telegram_debug(settings: Settings) -> None:
                 BotCommand("start", "Start the debug bot"),
                 BotCommand("ping", "Connectivity check"),
                 BotCommand("info", "Show user / chat info"),
-                BotCommand("draft", "Test sendMessageDraft streaming"),
                 BotCommand("md", "Test Markdown rendering"),
             ]
         )
