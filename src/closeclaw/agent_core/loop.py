@@ -153,6 +153,8 @@ class AgentSession:
             if loaded:
                 self.session_id = loaded["session_id"]
                 self.history = [Message.model_validate(m) for m in loaded["history"]]
+                if "system_prompt" in loaded:
+                    self.system_prompt = loaded["system_prompt"]
                 logger.info(
                     "Resumed session {sid} ({n} messages)",
                     sid=self.session_id,
@@ -187,6 +189,7 @@ class AgentSession:
             "session_id": self.session_id,
             "chat_id": self.chat_id,
             "updated_at": datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+            "system_prompt": self.system_prompt,
             "history": [m.model_dump(exclude_none=True) for m in self.history],
         }
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
