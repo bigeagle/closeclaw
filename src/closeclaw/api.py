@@ -70,11 +70,33 @@ def create_gateway(settings: Settings) -> FastAPI:
                 i=settings.heartbeat.interval,
             )
 
+        # Cron ticker (date-change tick at 00:00 local time)
+        cron_task: asyncio.Task | None = None
+        if settings.main_session_chat_id:
+            from closeclaw.cron import CronJob, run_cron_tasks
+            from closeclaw.channels.telegram import _insert_date_tick
+
+            async def _cron_runner() -> None:
+                jobs = [
+                    CronJob(
+                        name="daily-date-tick",
+                        hour=0,
+                        minute=0,
+                        callback=lambda: _insert_date_tick(settings),
+                    ),
+                ]
+                await run_cron_tasks(jobs)
+
+            cron_task = asyncio.create_task(_cron_runner())
+            logger.info("Cron ticker started")
+
         yield
 
         # ── Shutdown ─────────────────────────────────────────────────
         if heartbeat_task:
             heartbeat_task.cancel()
+        if cron_task:
+            cron_task.cancel()
         await tg_app.updater.stop()
         await tg_app.stop()
         await tg_app.shutdown()

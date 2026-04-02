@@ -40,6 +40,46 @@ _heartbeat_lock = asyncio.Lock()
 _heartbeat_run_lock = asyncio.Lock()
 
 
+async def _insert_date_tick(settings: Settings) -> None:
+    """Insert a date-change system event into main session and active sessions."""
+    from closeclaw.agent_core.loop import Message
+
+    now = datetime.datetime.now().astimezone()
+    offset = now.strftime("%z")
+    if offset:
+        hours = offset[:3]
+        minutes = offset[3:]
+        if minutes == "00":
+            tz_label = f"UTC{hours}"
+        else:
+            tz_label = f"UTC{hours}:{minutes}"
+    else:
+        tz_label = "Local"
+
+    weekday = now.strftime("%A")
+    date_str = now.strftime("%Y-%m-%d")
+    text = (
+        f"<system-event>\n"
+        f"Current date ({tz_label}) changed to {date_str}, Weekday: {weekday}\n"
+        f"</system-event>"
+    )
+    msg = Message(role="user", content=text)
+
+    if settings.main_session_chat_id:
+        async with _heartbeat_lock:
+            main = _get_session(settings.main_session_chat_id, settings)
+            main.history.append(msg)
+            main._save()
+
+    for chat_id, session in list(_sessions.items()):
+        if chat_id == settings.main_session_chat_id:
+            continue
+        session.history.append(msg)
+        session._save()
+
+    logger.info("Inserted daily date tick: {text}", text=text.replace("\n", " "))
+
+
 def _get_session(chat_id: int, settings: Settings) -> AgentSession:
     if chat_id not in _sessions:
         _sessions[chat_id] = AgentSession(settings, chat_id=chat_id)

@@ -103,3 +103,46 @@ class TestGetSession:
         finally:
             tg_mod._sessions.clear()
             tg_mod._sessions.update(old_sessions)
+
+
+class TestInsertDateTick:
+    async def test_inserts_into_main_and_active_sessions(self):
+        import asyncio
+        from unittest.mock import MagicMock, patch as _patch
+
+        import closeclaw.channels.telegram as tg_mod
+        from closeclaw.channels.telegram import _insert_date_tick
+
+        s = _settings(KIMI_API_KEY="fake-key", MAIN_SESSION_CHAT_ID="42")
+
+        main_session = MagicMock()
+        main_session.history = []
+        other_session = MagicMock()
+        other_session.history = []
+
+        old_sessions = tg_mod._sessions.copy()
+        old_lock = tg_mod._heartbeat_lock
+        try:
+            tg_mod._sessions.clear()
+            tg_mod._sessions[42] = main_session
+            tg_mod._sessions[99] = other_session
+            tg_mod._heartbeat_lock = asyncio.Lock()
+
+            with _patch.object(tg_mod, "AgentSession"):
+                await _insert_date_tick(s)
+
+            assert len(main_session.history) == 1
+            assert main_session._save.called
+            msg = main_session.history[0]
+            assert msg.role == "user"
+            text = msg.content[0].text
+            assert "<system-event>" in text
+            assert "Current date" in text
+            assert "Weekday:" in text
+
+            assert len(other_session.history) == 1
+            assert other_session._save.called
+        finally:
+            tg_mod._sessions.clear()
+            tg_mod._sessions.update(old_sessions)
+            tg_mod._heartbeat_lock = old_lock
